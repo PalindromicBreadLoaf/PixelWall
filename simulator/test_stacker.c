@@ -69,13 +69,10 @@ static void test_bounce_right(void) {
         if (stacker_get_block_x() == DISPLAY_W - stacker_get_block_width()) break;
     }
     int x_at_wall = stacker_get_block_x();
-    /* The last loop STEP was at t = 500*(steps+1), so that is last_move_ms.
-       base+500  → bounce frame: block overshoots, snaps to wall, direction flips
-                   (block_x unchanged on this frame).
-       base+1000 → first leftward move: block_x decreases by 1. */
+    /* With immediate reflection, one step is enough: the block overshoots by 1,
+       reflects back by 1, and arrives left of the wall in the same frame. */
     unsigned long base = (unsigned long)500 * (steps + 1);
     STEP(base + 500);
-    STEP(base + 1000);
     ASSERT(stacker_get_block_x() < x_at_wall, "block reverses at right wall");
 }
 
