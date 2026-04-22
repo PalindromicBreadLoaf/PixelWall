@@ -1,0 +1,21 @@
+#ifndef CONWAY_H_
+#define CONWAY_H_
+
+#include <stdint.h>
+#include "game.h"
+
+/* Game interface — used by the main loop. */
+void conway_init(void);
+void conway_update(unsigned long now_ms);
+void conway_on_input(InputEvent ev);
+int  conway_is_over(void);
+
+extern const Game conway_game;
+
+/* Setup and inspection — used by tests and external seed logic. */
+void conway_clear_grid(void);
+void conway_set_cell(uint8_t x, uint8_t y, int alive);
+int  conway_get_cell(uint8_t x, uint8_t y);
+int  conway_in_stasis(void);   /* non-zero when stasis or extinction detected */
+
+#endif /* CONWAY_H_ */
