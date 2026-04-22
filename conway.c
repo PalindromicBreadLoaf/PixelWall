@@ -12,19 +12,37 @@
 #define CELL_G 200
 #define CELL_B  50
 
-static uint8_t grid[ROWS][COLS];
-static uint8_t next_grid[ROWS][COLS];
+/* Rolling hash history for oscillator detection.
+   Keeps FNV-1a hashes of the last HASH_HISTORY grid states.
+   If the next state matches any stored hash we have a cycle (period 1–16). */
+#define HASH_HISTORY 16
+
+static uint8_t  grid[ROWS][COLS];
+static uint8_t  next_grid[ROWS][COLS];
 
 static unsigned long last_step_ms = 0;
-static unsigned long stasis_ms    = 0;  /* 0 = not in stasis */
+static unsigned long stasis_ms    = 0;
+
+static uint32_t hash_history[HASH_HISTORY];
+static int      hash_count = 0;   /* total entries recorded (not capped) */
 
 /* ------------------------------------------------------------------ */
+
+static uint32_t fnv1a(const uint8_t *buf, int len) {
+    uint32_t h = 2166136261u;
+    for (int i = 0; i < len; i++) {
+        h ^= buf[i];
+        h *= 16777619u;
+    }
+    return h;
+}
 
 static void do_seed(void) {
     for (int y = 0; y < ROWS; y++)
         for (int x = 0; x < COLS; x++)
-            grid[y][x] = (rand() % 3 == 0) ? 1 : 0;  /* ~33% density */
-    stasis_ms = 0;
+            grid[y][x] = (rand() % 3 == 0) ? 1 : 0;
+    stasis_ms  = 0;
+    hash_count = 0;
 }
 
 static void draw_grid(void) {
@@ -89,30 +107,38 @@ void conway_update(unsigned long now_ms) {
     if (now_ms - last_step_ms < GEN_MS) return;
     last_step_ms = now_ms;
 
+    /* Record current state in the rolling hash history. */
+    hash_history[hash_count % HASH_HISTORY] = fnv1a(&grid[0][0], ROWS * COLS);
+    hash_count++;
+
     compute_next();
 
-    /* Still life: nothing changed — display is already correct. */
-    if (memcmp(grid, next_grid, sizeof(grid)) == 0) {
-        stasis_ms = now_ms;
-        return;
+    /* Oscillator detection: if the next state matches any stored state, it's
+       a cycle.  Catches still lifes (period 1), blinkers (period 2), and any
+       oscillator up to period HASH_HISTORY. */
+    uint32_t h_next  = fnv1a(&next_grid[0][0], ROWS * COLS);
+    int      n_check = (hash_count < HASH_HISTORY) ? hash_count : HASH_HISTORY;
+    for (int i = 0; i < n_check; i++) {
+        if (hash_history[i] == h_next) {
+            stasis_ms = now_ms;
+            return;
+        }
     }
 
     memcpy(grid, next_grid, sizeof(grid));
     draw_grid();
 
-    /* Extinction: all cells died in this step — display the all-dark grid,
-       then wait before re-seeding just like a still life. */
-    if (!grid_has_live(grid)) {
+    /* Extinction: all cells died this step. */
+    if (!grid_has_live(grid))
         stasis_ms = now_ms;
-    }
 }
 
 void conway_on_input(InputEvent ev) {
-    (void)ev;  /* screensaver ignores input — handled by main loop */
+    (void)ev;
 }
 
 int conway_is_over(void) {
-    return 0;  /* screensaver never ends on its own */
+    return 0;
 }
 
 /* ------------------------------------------------------------------ */
@@ -121,6 +147,7 @@ void conway_clear_grid(void) {
     memset(grid, 0, sizeof(grid));
     stasis_ms    = 0;
     last_step_ms = 0;
+    hash_count   = 0;
 }
 
 void conway_set_cell(uint8_t x, uint8_t y, int alive) {
