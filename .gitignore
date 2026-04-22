@@ -1,4 +1,5 @@
 simulator/pixel_wall
 simulator/test_input
 simulator/test_conway
+simulator/test_stacker
 simulator/test_display
