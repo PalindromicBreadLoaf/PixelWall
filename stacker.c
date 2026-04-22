@@ -160,7 +160,6 @@ void stacker_on_input(InputEvent ev) {
     speed_ms = (new_speed > MIN_SPEED) ? new_speed : MIN_SPEED;
 
     stack_row--;
-    direction    = 1;
     last_move_ms = current_ms;
 
     draw();
