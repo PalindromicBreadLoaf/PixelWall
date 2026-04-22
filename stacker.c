@@ -95,10 +95,12 @@ void stacker_update(unsigned long now_ms) {
 
     block_x += direction;
     if (block_x + block_width > COLS) {
-        block_x   = COLS - block_width;
+        int over  = block_x + block_width - COLS;
+        block_x   = COLS - block_width - over;
         direction = -1;
     } else if (block_x < 0) {
-        block_x   = 0;
+        int over  = -block_x;
+        block_x   = over;
         direction = 1;
     }
 
