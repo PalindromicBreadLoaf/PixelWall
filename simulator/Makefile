@@ -7,14 +7,18 @@ SDL_LIBS   = $(shell sdl2-config --libs)
 
 all: pixel_wall
 
-pixel_wall: main.c display_buf.c display_sim.c
+pixel_wall: main.c display_buf.c display_sim.c input_sim.c
 	$(CC) $(CFLAGS) $(SDL_CFLAGS) $^ -o $@ $(SDL_LIBS)
 
 test_display: test_display.c display_buf.c
 	$(CC) $(CFLAGS) $^ -o $@
 
-test: test_display
+test_input: test_input.c input_sim.c
+	$(CC) $(CFLAGS) $(SDL_CFLAGS) $^ -o $@ $(SDL_LIBS)
+
+test: test_display test_input
 	./test_display
+	./test_input
 
 clean:
-	rm -f pixel_wall test_display
+	rm -f pixel_wall test_display test_input
