@@ -140,13 +140,10 @@ static void test_blinker(void) {
     ASSERT(conway_get_cell(4, 12) == 0, "blinker step1: left dies");
     ASSERT(conway_get_cell(6, 12) == 0, "blinker step1: right dies");
 
-    conway_update(400UL);  /* second step */
-    /* Should return to horizontal. */
-    ASSERT(conway_get_cell(4, 12) == 1, "blinker step2: left reborn");
-    ASSERT(conway_get_cell(5, 12) == 1, "blinker step2: centre survives");
-    ASSERT(conway_get_cell(6, 12) == 1, "blinker step2: right reborn");
-    ASSERT(conway_get_cell(5, 11) == 0, "blinker step2: top dies");
-    ASSERT(conway_get_cell(5, 13) == 0, "blinker step2: bottom dies");
+    /* Step 2 would return to horizontal — matching the stored initial state.
+       Oscillator detection fires instead of applying the update. */
+    conway_update(400UL);
+    ASSERT(conway_in_stasis(), "blinker step2: period-2 cycle detected as stasis");
 }
 
 static void test_wrapping(void) {
@@ -267,6 +264,26 @@ static void test_drawing(void) {
     ASSERT(r == 0 && g == 0 && b == 0, "dead cell drawn as black");
 }
 
+static void test_oscillator_detected(void) {
+    puts("oscillator_detected");
+
+    /* Horizontal blinker is a period-2 oscillator.
+       Step 1: rotates to vertical — not seen before, no stasis.
+       Step 2: back to horizontal — matches the initial state, stasis triggered. */
+    setup();
+    conway_set_cell(3, 12, 1);
+    conway_set_cell(4, 12, 1);
+    conway_set_cell(5, 12, 1);
+
+    ASSERT(!conway_in_stasis(), "not in stasis before any step");
+
+    conway_update(200UL);
+    ASSERT(!conway_in_stasis(), "not in stasis after step 1 (new state)");
+
+    conway_update(400UL);
+    ASSERT(conway_in_stasis(), "period-2 oscillator detected after returning to initial state");
+}
+
 static void test_on_input_is_noop(void) {
     puts("on_input_noop");
 
@@ -301,6 +318,7 @@ int main(void) {
     test_extinction_triggers_stasis();
     test_reseed_after_stasis();
     test_drawing();
+    test_oscillator_detected();
     test_on_input_is_noop();
     test_is_over_always_false();
 
