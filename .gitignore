@@ -3,3 +3,4 @@ simulator/test_input
 simulator/test_conway
 simulator/test_stacker
 simulator/test_display
+simulator/test_space_invaders
