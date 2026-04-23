@@ -6,6 +6,7 @@
 #include "../game.h"
 #include "../conway.h"
 #include "../stacker.h"
+#include "../space_invaders.h"
 #include "input_sim.h"
 
 extern void display_sim_quit(void);
@@ -14,6 +15,7 @@ extern void display_sim_quit(void);
 
 static const Game *games[] = {
     &stacker_game,
+    &si_game,
 };
 #define NUM_GAMES ((int)(sizeof(games) / sizeof(games[0])))
 
