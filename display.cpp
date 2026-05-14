@@ -41,6 +41,7 @@ static short transform_pixel(int x, int y) {
 
 extern "C" void display_init(void) {
     FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);
+    FastLED.setMaxPowerInVoltsAndMilliamps(5, 2000);
     display_clear();
     display_show();
 }
