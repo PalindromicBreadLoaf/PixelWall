@@ -8,9 +8,26 @@
 #define GEN_MS    750UL   /* ms between generations */
 #define RESEED_MS 2000UL  /* pause before re-seeding after stasis */
 
-#define CELL_R   0
-#define CELL_G 200
-#define CELL_B  50
+#define CELL_BRIGHTNESS 200  /* 0–255 */
+#define HUE_STEP          2  /* degrees per generation (full cycle ≈ 135 s) */
+
+static int cell_hue = 0;  /* 0..359 */
+
+static void hue_to_rgb(int h, uint8_t *r, uint8_t *g, uint8_t *b) {
+    int sector = h / 60;
+    int f = h % 60;
+    uint8_t v = CELL_BRIGHTNESS;
+    uint8_t q = (uint8_t)(v * (60 - f) / 60);
+    uint8_t t = (uint8_t)(v * f / 60);
+    switch (sector) {
+        case 0: *r = v; *g = t; *b = 0; break;
+        case 1: *r = q; *g = v; *b = 0; break;
+        case 2: *r = 0; *g = v; *b = t; break;
+        case 3: *r = 0; *g = q; *b = v; break;
+        case 4: *r = t; *g = 0; *b = v; break;
+        default:*r = v; *g = 0; *b = q; break;
+    }
+}
 
 /* Rolling hash history for oscillator detection.
    Keeps FNV-1a hashes of the last HASH_HISTORY grid states.
@@ -46,10 +63,12 @@ static void do_seed(void) {
 }
 
 static void draw_grid(void) {
+    uint8_t r, g, b;
+    hue_to_rgb(cell_hue, &r, &g, &b);
     for (int y = 0; y < ROWS; y++) {
         for (int x = 0; x < COLS; x++) {
             if (grid[y][x])
-                display_set((uint8_t)x, (uint8_t)y, CELL_R, CELL_G, CELL_B);
+                display_set((uint8_t)x, (uint8_t)y, r, g, b);
             else
                 display_set((uint8_t)x, (uint8_t)y, 0, 0, 0);
         }
@@ -126,6 +145,7 @@ void conway_update(unsigned long now_ms) {
     }
 
     memcpy(grid, next_grid, sizeof(grid));
+    cell_hue = (cell_hue + HUE_STEP) % 360;
     draw_grid();
 
     /* Extinction: all cells died this step. */
