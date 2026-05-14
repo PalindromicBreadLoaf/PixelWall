@@ -7,7 +7,7 @@
 #include "space_invaders.h"
 
 #define SCREENSAVER_TIMEOUT_MS 30000UL
-#define WIPE_STEP_MS              12UL  /* ms per row — 25 rows = 300 ms total */
+#define WIPE_STEP_MS              30UL  /* ms per column — 10 columns = 300 ms total */
 
 static const Game *games[] = {
     &stacker_game,
@@ -18,8 +18,9 @@ static const Game *games[] = {
 static int current_game   = 0;
 static int in_screensaver = 0;
 static int in_wipe        = 0;
+static int wipe_out       = 0;
 static int wipe_next      = 0;
-static int wipe_row       = 0;
+static int wipe_col       = 0;
 static unsigned long last_wipe_ms = 0;
 
 void setup() {
@@ -41,8 +42,9 @@ void loop() {
             in_screensaver = 0;
             games[current_game]->init();
         } else if (ev == INPUT_HOLD) {
+            wipe_out     = 0;
             wipe_next    = (current_game + 1) % NUM_GAMES;
-            wipe_row     = 0;
+            wipe_col     = 0;
             in_wipe      = 1;
             last_wipe_ms = now;
         } else {
@@ -58,15 +60,38 @@ void loop() {
     }
 
     if (in_wipe) {
-        if (now - last_wipe_ms >= WIPE_STEP_MS) {
-            last_wipe_ms = now;
-            for (int x = 0; x < DISPLAY_W; x++)
-                display_set((uint8_t)x, (uint8_t)wipe_row, 0, 0, 0);
-            wipe_row++;
-            if (wipe_row >= DISPLAY_H) {
-                in_wipe      = 0;
-                current_game = wipe_next;
-                games[current_game]->init();
+        if (!wipe_out) {
+            /* WIPE_IN: paint one white column per step, left → right. */
+            if (now - last_wipe_ms >= WIPE_STEP_MS) {
+                last_wipe_ms = now;
+                for (int y = 0; y < DISPLAY_H; y++)
+                    display_set((uint8_t)wipe_col, (uint8_t)y, 255, 255, 255);
+                wipe_col++;
+                if (wipe_col >= DISPLAY_W) {
+                    wipe_out     = 1;
+                    wipe_col     = 0;
+                    current_game = wipe_next;
+                    games[current_game]->init();
+                    last_wipe_ms = now;
+                    /* Repaint white so init()'s draw doesn't show this frame. */
+                    for (int x = 0; x < DISPLAY_W; x++)
+                        for (int y = 0; y < DISPLAY_H; y++)
+                            display_set((uint8_t)x, (uint8_t)y, 255, 255, 255);
+                }
+            }
+        } else {
+            /* WIPE_OUT: run the new game each frame so revealed columns
+               show a live image, then re-paint white over the unrevealed
+               right-side columns on top. */
+            games[current_game]->update(now);
+            for (int col = wipe_col; col < DISPLAY_W; col++)
+                for (int y = 0; y < DISPLAY_H; y++)
+                    display_set((uint8_t)col, (uint8_t)y, 255, 255, 255);
+            if (now - last_wipe_ms >= WIPE_STEP_MS) {
+                last_wipe_ms = now;
+                wipe_col++;
+                if (wipe_col >= DISPLAY_W)
+                    in_wipe = 0;
             }
         }
     } else if (in_screensaver) {
