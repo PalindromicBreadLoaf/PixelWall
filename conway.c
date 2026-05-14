@@ -55,9 +55,29 @@ static uint32_t fnv1a(const uint8_t *buf, int len) {
 }
 
 static void do_seed(void) {
+    /* Lower random density (25% vs 33%) reduces early extinction while leaving
+       room for the planted oscillators to interact. */
     for (int y = 0; y < ROWS; y++)
         for (int x = 0; x < COLS; x++)
-            grid[y][x] = (rand() % 3 == 0) ? 1 : 0;
+            grid[y][x] = (rand() % 4 == 0) ? 1 : 0;
+
+    /* Plant horizontal blinkers (period-2 oscillators). */
+    for (int k = 0; k < 4; k++) {
+        int x = rand() % (COLS - 2);
+        int y = rand() % ROWS;
+        grid[y][x] = grid[y][x+1] = grid[y][x+2] = 1;
+    }
+
+    /* Plant gliders — each produces a stream of activity as it crosses the
+       toroidal grid, seeding regions the random noise may have missed. */
+    for (int k = 0; k < 3; k++) {
+        int x = rand() % (COLS - 2);
+        int y = rand() % (ROWS - 2);
+        grid[y  ][x+1] = 1;
+        grid[y+1][x+2] = 1;
+        grid[y+2][x  ] = grid[y+2][x+1] = grid[y+2][x+2] = 1;
+    }
+
     stasis_ms  = 0;
     hash_count = 0;
 }
@@ -168,6 +188,7 @@ void conway_clear_grid(void) {
     stasis_ms    = 0;
     last_step_ms = 0;
     hash_count   = 0;
+    cell_hue     = 0;
 }
 
 void conway_set_cell(uint8_t x, uint8_t y, int alive) {
