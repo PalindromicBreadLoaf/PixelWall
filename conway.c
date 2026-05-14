@@ -5,7 +5,7 @@
 
 #define COLS      DISPLAY_W
 #define ROWS      DISPLAY_H
-#define GEN_MS    200UL   /* ms between generations */
+#define GEN_MS    750UL   /* ms between generations */
 #define RESEED_MS 2000UL  /* pause before re-seeding after stasis */
 
 #define CELL_R   0
