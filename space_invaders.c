@@ -1,7 +1,7 @@
 #include "space_invaders.h"
 #include "display.h"
+#include "eeprom.h"
 #include <stdlib.h>
-#include <string.h>
 
 #define INV_COLS        4
 #define INV_ROWS        3
@@ -14,6 +14,10 @@
 #define INV_BULLET_MS    160UL
 #define END_DELAY_MS     1500UL
 #define LEVEL_DELAY_MS   1200UL
+
+/* Level indicator shown after each wave is cleared. */
+#define LEVEL_INTRO_MS      1500UL
+#define LEVEL_INTRO_STEP_MS  300UL   /* ms between successive dots appearing */
 
 #define N_CONFETTI       12
 #define CONFETTI_STEP_MS 120UL
@@ -55,6 +59,9 @@ static const uint8_t ROW_R[INV_ROWS] = {200,   0, 200};
 static const uint8_t ROW_G[INV_ROWS] = {  0, 200, 200};
 static const uint8_t ROW_B[INV_ROWS] = {200, 200,   0};
 
+/* EEPROM address for Space Invaders high level. */
+#define SI_EEPROM_ADDR 0
+
 /* ------------------------------------------------------------------ */
 
 static uint8_t      alive[INV_ROWS][INV_COLS];
@@ -82,6 +89,10 @@ static int           level;
 static int           end_type;
 static unsigned long end_time_ms;
 static unsigned long current_ms;
+
+/* level_intro_start_ms > 0 while the between-wave level indicator is shown.
+   The normal game loop is paused during this window. */
+static unsigned long level_intro_start_ms;
 
 #define EXPLOSION_FRAMES   4
 #define EXPLOSION_FRAME_MS 80UL
@@ -195,6 +206,18 @@ static void draw(void) {
 
     if (inv_bul_y >= 0)
         display_set((uint8_t)inv_bul_x, (uint8_t)inv_bul_y, 255, 50, 0);
+}
+
+/* Show level-N indicator: dots grow upward from the screen centre, one per
+   LEVEL_INTRO_STEP_MS, until all N are visible. */
+static void draw_level_intro(void) {
+    display_clear();
+    unsigned long elapsed = current_ms - level_intro_start_ms;
+    int dots = (int)(elapsed / LEVEL_INTRO_STEP_MS) + 1;
+    if (dots > level) dots = level;
+    int cy = DISPLAY_H / 2;  /* row 12 */
+    for (int i = 0; i < dots; i++)
+        display_set(DISPLAY_W / 2, (uint8_t)(cy - i), 255, 200, 0);
 }
 
 static void draw_end_frame(void) {
@@ -337,6 +360,12 @@ static void init_level(void) {
     explosion_frame   = 0;
     last_explosion_ms = 0;
     player_frozen     = 0;
+    level_intro_start_ms = 0;
+
+    /* Persist the highest level reached. */
+    uint8_t hi = eeprom_read(SI_EEPROM_ADDR);
+    if (hi == 0xFF || level > hi)
+        eeprom_write(SI_EEPROM_ADDR, (uint8_t)level);
 
     draw();
 }
@@ -349,6 +378,7 @@ void si_init(void) {
     player_dir  = 1;
     last_player_move = 0;
     current_ms  = 0;
+    level_intro_start_ms = 0;
     init_level();
 }
 
@@ -360,8 +390,18 @@ void si_update(unsigned long now_ms) {
         if (end_type == END_LEVEL_WIN && now_ms - end_time_ms >= LEVEL_DELAY_MS) {
             level++;
             init_level();
+            level_intro_start_ms = now_ms;  /* show level indicator */
         }
         return;
+    }
+
+    /* Show level indicator between waves. */
+    if (level_intro_start_ms != 0) {
+        if (now_ms - level_intro_start_ms < LEVEL_INTRO_MS) {
+            draw_level_intro();
+            return;
+        }
+        level_intro_start_ms = 0;  /* intro complete */
     }
 
     /* Move player (skipped while frozen). */
@@ -413,6 +453,7 @@ void si_update(unsigned long now_ms) {
 
 void si_on_input(InputEvent ev) {
     if (end_type != END_NONE) return;
+    if (level_intro_start_ms != 0) return;  /* no input during level intro */
     if (ev == INPUT_DOUBLE_TAP) {
         player_frozen = !player_frozen;
     } else if (ev == INPUT_TAP) {
