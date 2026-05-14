@@ -83,6 +83,12 @@ static int           end_type;
 static unsigned long end_time_ms;
 static unsigned long current_ms;
 
+#define EXPLOSION_FRAMES   4
+#define EXPLOSION_FRAME_MS 80UL
+
+static int           explosion_frame;
+static unsigned long last_explosion_ms;
+
 /* ------------------------------------------------------------------ */
 
 static int count_alive(void) {
@@ -117,9 +123,54 @@ static void init_confetti_green(void) {
     last_confetti_ms = 0;
 }
 
+static void draw_explosion(void) {
+    int px = player_x;
+    display_clear();
+    for (int r = 0; r < INV_ROWS; r++) {
+        for (int c = 0; c < INV_COLS; c++) {
+            if (!alive[r][c]) continue;
+            int x = group_x + c * INV_X_SPACING;
+            int y = group_y + r * INV_Y_SPACING;
+            display_set((uint8_t)x, (uint8_t)y, ROW_R[r], ROW_G[r], ROW_B[r]);
+        }
+    }
+    switch (explosion_frame) {
+        case 0:
+            display_set((uint8_t)px, PLAYER_ROW, 255, 255, 200);
+            break;
+        case 1:
+            if (px > 0)           display_set((uint8_t)(px-1), PLAYER_ROW,   255, 120, 0);
+            display_set((uint8_t)px, PLAYER_ROW, 255, 80, 0);
+            if (px < DISPLAY_W-1) display_set((uint8_t)(px+1), PLAYER_ROW,   255, 120, 0);
+            display_set((uint8_t)px, PLAYER_ROW-1, 255, 100, 0);
+            break;
+        case 2:
+            if (px > 1)           display_set((uint8_t)(px-2), PLAYER_ROW,   180, 40, 0);
+            if (px > 0)           display_set((uint8_t)(px-1), PLAYER_ROW,   120, 30, 0);
+            if (px < DISPLAY_W-1) display_set((uint8_t)(px+1), PLAYER_ROW,   120, 30, 0);
+            if (px < DISPLAY_W-2) display_set((uint8_t)(px+2), PLAYER_ROW,   180, 40, 0);
+            display_set((uint8_t)px, PLAYER_ROW-1, 100, 30, 0);
+            if (px > 0)           display_set((uint8_t)(px-1), PLAYER_ROW-2, 120, 40, 0);
+            display_set((uint8_t)px, PLAYER_ROW-2, 80, 20, 0);
+            if (px < DISPLAY_W-1) display_set((uint8_t)(px+1), PLAYER_ROW-2, 120, 40, 0);
+            break;
+        case 3:
+            if (px > 2)           display_set((uint8_t)(px-3), PLAYER_ROW,   60, 10, 0);
+            if (px > 1)           display_set((uint8_t)(px-2), PLAYER_ROW,   40, 10, 0);
+            if (px < DISPLAY_W-2) display_set((uint8_t)(px+2), PLAYER_ROW,   40, 10, 0);
+            if (px < DISPLAY_W-3) display_set((uint8_t)(px+3), PLAYER_ROW,   60, 10, 0);
+            display_set((uint8_t)px, PLAYER_ROW-2, 50, 15, 0);
+            display_set((uint8_t)px, PLAYER_ROW-3, 30, 10, 0);
+            break;
+        default: break;
+    }
+}
+
 static void trigger_end(int type) {
-    end_type    = type;
-    end_time_ms = current_ms;
+    end_type          = type;
+    end_time_ms       = current_ms;
+    explosion_frame   = 0;
+    last_explosion_ms = current_ms;
     if (type == END_GAME_WIN)   init_confetti_rainbow();
     if (type == END_LEVEL_WIN)  init_confetti_green();
 }
@@ -148,8 +199,23 @@ static void draw(void) {
 
 static void draw_end_frame(void) {
     if (end_type == END_GAME_OVER) {
-        draw();
-        display_set((uint8_t)player_x, PLAYER_ROW, 200, 0, 0);
+        if (explosion_frame < EXPLOSION_FRAMES) {
+            if (current_ms - last_explosion_ms >= EXPLOSION_FRAME_MS) {
+                last_explosion_ms = current_ms;
+                explosion_frame++;
+            }
+            draw_explosion();
+        } else {
+            display_clear();
+            for (int r = 0; r < INV_ROWS; r++) {
+                for (int c = 0; c < INV_COLS; c++) {
+                    if (!alive[r][c]) continue;
+                    int x = group_x + c * INV_X_SPACING;
+                    int y = group_y + r * INV_Y_SPACING;
+                    display_set((uint8_t)x, (uint8_t)y, ROW_R[r], ROW_G[r], ROW_B[r]);
+                }
+            }
+        }
         return;
     }
     /* WIN states: twinkling confetti. */
@@ -265,10 +331,12 @@ static void init_level(void) {
     last_inv_bul_move = 0;
     last_inv_fire     = 0;
 
-    end_type         = END_NONE;
-    end_time_ms      = 0;
-    last_confetti_ms = 0;
-    player_frozen    = 0;
+    end_type          = END_NONE;
+    end_time_ms       = 0;
+    last_confetti_ms  = 0;
+    explosion_frame   = 0;
+    last_explosion_ms = 0;
+    player_frozen     = 0;
 
     draw();
 }
