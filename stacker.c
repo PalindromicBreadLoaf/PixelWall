@@ -1,5 +1,6 @@
 #include "stacker.h"
 #include "display.h"
+#include "eeprom.h"
 #include <string.h>
 #include <stdlib.h>
 
@@ -9,12 +10,22 @@
 #define INITIAL_SPEED  200UL   /* ms per block move at start */
 #define MIN_SPEED       50UL   /* fastest the block can move */
 #define SPEED_STEP       8UL   /* ms shaved off per locked row */
-#define END_DELAY_MS     1500UL
+
+/* End sequence: ANIM_PHASE_MS of fall/confetti, then SCORE_PHASE_MS of score
+   display, then the game reports is_over. */
+#define ANIM_PHASE_MS   1000UL  /* fall animation / confetti duration */
+#define SCORE_PHASE_MS  1800UL  /* score count-up display duration */
+#define END_DELAY_MS    (ANIM_PHASE_MS + SCORE_PHASE_MS)
+
+#define SCORE_STEP_MS     72UL  /* ms between successive score dots appearing */
 
 #define N_CONFETTI       14
 #define CONFETTI_STEP_MS 120UL
 #define FALL_PAUSE_MS     400UL
 #define FALL_STEP_MS       65UL
+
+/* EEPROM address for Stacker best score (rows locked). */
+#define STACKER_EEPROM_ADDR 1
 
 static const uint8_t CONF_COLS[7][3] = {
     {255,  50,  50},
@@ -85,9 +96,27 @@ static void init_confetti(void) {
     last_confetti_ms = 0;
 }
 
+static void draw_score(void) {
+    unsigned long score_elapsed = current_ms - end_time_ms - ANIM_PHASE_MS;
+    int dots = (int)(score_elapsed / SCORE_STEP_MS);
+    if (dots > locks_done) dots = locks_done;
+    display_clear();
+    for (int i = 0; i < dots; i++)
+        display_set(DISPLAY_W / 2, DISPLAY_H - 1 - i, 255, 200, 50);
+}
+
 static void draw_end_frame(void) {
+    unsigned long elapsed = current_ms - end_time_ms;
+
+    /* Phase 2: score display (both win and lose). */
+    if (elapsed >= ANIM_PHASE_MS) {
+        draw_score();
+        return;
+    }
+
     if (!game_won) {
-        if (current_ms - end_time_ms < FALL_PAUSE_MS) {
+        /* Phase 1 (lose): brief red freeze, then blocks fall. */
+        if (elapsed < FALL_PAUSE_MS) {
             display_clear();
             for (int y = 0; y < ROWS; y++)
                 for (int x = 0; x < COLS; x++)
@@ -115,6 +144,8 @@ static void draw_end_frame(void) {
         }
         return;
     }
+
+    /* Phase 1 (win): twinkling confetti. */
     if (current_ms - last_confetti_ms >= CONFETTI_STEP_MS) {
         last_confetti_ms = current_ms;
         for (int i = 0; i < 3; i++) {
@@ -203,6 +234,10 @@ void stacker_on_input(InputEvent ev) {
     }
 
     if (!any_locked) {
+        /* Save score if it beats the stored high score. */
+        uint8_t hi = eeprom_read(STACKER_EEPROM_ADDR);
+        if (hi == 0xFF || locks_done > hi)
+            eeprom_write(STACKER_EEPROM_ADDR, (uint8_t)locks_done);
         in_end_state = 1;
         end_time_ms  = current_ms;
         game_won     = 0;
@@ -216,6 +251,10 @@ void stacker_on_input(InputEvent ev) {
     locks_done++;
 
     if (stack_row == 0) {
+        /* Save score if it beats the stored high score. */
+        uint8_t hi = eeprom_read(STACKER_EEPROM_ADDR);
+        if (hi == 0xFF || locks_done > hi)
+            eeprom_write(STACKER_EEPROM_ADDR, (uint8_t)locks_done);
         in_end_state = 1;
         end_time_ms  = current_ms;
         game_won     = 1;
