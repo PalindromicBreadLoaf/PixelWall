@@ -12,8 +12,31 @@
 #define PLAYER_SPEED_MS  200UL
 #define BULLET_SPEED_MS   60UL
 #define INV_BULLET_MS    160UL
-#define END_DELAY_MS    1500UL  /* game-over / game-win flash duration */
-#define LEVEL_DELAY_MS  1200UL  /* celebration before next level starts */
+#define END_DELAY_MS     1500UL
+#define LEVEL_DELAY_MS   1200UL
+
+#define N_CONFETTI       12
+#define CONFETTI_STEP_MS 120UL
+
+static const uint8_t CONF_COLS[7][3] = {
+    {255,  50,  50},
+    {255, 160,   0},
+    {220, 220,   0},
+    {  0, 255,  80},
+    {  0, 200, 255},
+    { 80,  80, 255},
+    {220,   0, 255},
+};
+static const uint8_t GREEN_COLS[3][3] = {
+    {  0, 255,  80},
+    { 80, 255, 140},
+    {  0, 200,  50},
+};
+#define N_CONF_COLS  7
+#define N_GREEN_COLS 3
+
+static struct { uint8_t x, y, r, g, b; } confetti[N_CONFETTI];
+static unsigned long last_confetti_ms;
 #define MAX_LEVELS         4
 
 #define END_NONE      0
@@ -67,9 +90,35 @@ static int count_alive(void) {
     return n;
 }
 
+static void init_confetti_rainbow(void) {
+    for (int i = 0; i < N_CONFETTI; i++) {
+        int ci = (i * 3) % N_CONF_COLS;
+        confetti[i].x = (uint8_t)(rand() % DISPLAY_W);
+        confetti[i].y = (uint8_t)(rand() % DISPLAY_H);
+        confetti[i].r = CONF_COLS[ci][0];
+        confetti[i].g = CONF_COLS[ci][1];
+        confetti[i].b = CONF_COLS[ci][2];
+    }
+    last_confetti_ms = 0;
+}
+
+static void init_confetti_green(void) {
+    for (int i = 0; i < N_CONFETTI; i++) {
+        int ci = i % N_GREEN_COLS;
+        confetti[i].x = (uint8_t)(rand() % DISPLAY_W);
+        confetti[i].y = (uint8_t)(rand() % DISPLAY_H);
+        confetti[i].r = GREEN_COLS[ci][0];
+        confetti[i].g = GREEN_COLS[ci][1];
+        confetti[i].b = GREEN_COLS[ci][2];
+    }
+    last_confetti_ms = 0;
+}
+
 static void trigger_end(int type) {
     end_type    = type;
     end_time_ms = current_ms;
+    if (type == END_GAME_WIN)   init_confetti_rainbow();
+    if (type == END_LEVEL_WIN)  init_confetti_green();
 }
 
 static void draw(void) {
@@ -94,17 +143,30 @@ static void draw(void) {
 }
 
 static void draw_end_frame(void) {
-    unsigned long elapsed = current_ms - end_time_ms;
-    int on = (int)((elapsed / 200) % 2);
-    display_clear();
-    if (on) {
-        uint8_t r = 255, g = 0, b = 0;
-        if (end_type == END_LEVEL_WIN)       { r=0;   g=255; b=0;   }
-        else if (end_type == END_GAME_WIN)   { r=255; g=255; b=255; }
-        for (int y = 0; y < DISPLAY_H; y++)
-            for (int x = 0; x < DISPLAY_W; x++)
-                display_set((uint8_t)x, (uint8_t)y, r, g, b);
+    if (end_type == END_GAME_OVER) {
+        draw();
+        display_set((uint8_t)player_x, PLAYER_ROW, 200, 0, 0);
+        return;
     }
+    /* WIN states: twinkling confetti. */
+    const uint8_t (*palette)[3] = (end_type == END_GAME_WIN) ? CONF_COLS : GREEN_COLS;
+    int n_pal = (end_type == END_GAME_WIN) ? N_CONF_COLS : N_GREEN_COLS;
+    if (current_ms - last_confetti_ms >= CONFETTI_STEP_MS) {
+        last_confetti_ms = current_ms;
+        for (int i = 0; i < 3; i++) {
+            int idx = rand() % N_CONFETTI;
+            int ci  = rand() % n_pal;
+            confetti[idx].x = (uint8_t)(rand() % DISPLAY_W);
+            confetti[idx].y = (uint8_t)(rand() % DISPLAY_H);
+            confetti[idx].r = palette[ci][0];
+            confetti[idx].g = palette[ci][1];
+            confetti[idx].b = palette[ci][2];
+        }
+    }
+    display_clear();
+    for (int i = 0; i < N_CONFETTI; i++)
+        display_set(confetti[i].x, confetti[i].y,
+                    confetti[i].r, confetti[i].g, confetti[i].b);
 }
 
 /* ------------------------------------------------------------------ */
@@ -200,9 +262,10 @@ static void init_level(void) {
     last_inv_bul_move = 0;
     last_inv_fire     = 0;
 
-    end_type      = END_NONE;
-    end_time_ms   = 0;
-    player_frozen = 0;
+    end_type         = END_NONE;
+    end_time_ms      = 0;
+    last_confetti_ms = 0;
+    player_frozen    = 0;
 
     draw();
 }

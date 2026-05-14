@@ -1,6 +1,7 @@
 #include "stacker.h"
 #include "display.h"
 #include <string.h>
+#include <stdlib.h>
 
 #define COLS          DISPLAY_W
 #define ROWS          DISPLAY_H
@@ -8,8 +9,24 @@
 #define INITIAL_SPEED  200UL   /* ms per block move at start */
 #define MIN_SPEED       50UL   /* fastest the block can move */
 #define SPEED_STEP       8UL   /* ms shaved off per locked row */
-#define END_DELAY_MS  1500UL   /* time to show win/lose animation */
-#define BLINK_MS       200UL   /* animation blink interval */
+#define END_DELAY_MS     1500UL
+
+#define N_CONFETTI       14
+#define CONFETTI_STEP_MS 120UL
+
+static const uint8_t CONF_COLS[7][3] = {
+    {255,  50,  50},
+    {255, 160,   0},
+    {220, 220,   0},
+    {  0, 255,  80},
+    {  0, 200, 255},
+    { 80,  80, 255},
+    {220,   0, 255},
+};
+#define N_CONF_COLS 7
+
+static struct { uint8_t x, y, r, g, b; } confetti[N_CONFETTI];
+static unsigned long last_confetti_ms;
 
 /* Moving block color */
 #define BLK_R 255
@@ -49,19 +66,43 @@ static void draw(void) {
             display_set((uint8_t)x, (uint8_t)stack_row, BLK_R, BLK_G, BLK_B);
 }
 
-static void draw_end_frame(void) {
-    unsigned long elapsed = current_ms - end_time_ms;
-    int on = (int)((elapsed / BLINK_MS) % 2);
+static void init_confetti(void) {
+    for (int i = 0; i < N_CONFETTI; i++) {
+        int ci = (i * 3) % N_CONF_COLS;
+        confetti[i].x = (uint8_t)(rand() % COLS);
+        confetti[i].y = (uint8_t)(rand() % ROWS);
+        confetti[i].r = CONF_COLS[ci][0];
+        confetti[i].g = CONF_COLS[ci][1];
+        confetti[i].b = CONF_COLS[ci][2];
+    }
+    last_confetti_ms = 0;
+}
 
-    display_clear();
-    if (on) {
-        uint8_t r = game_won ? 255 : 255;
-        uint8_t g = game_won ? 255 :   0;
-        uint8_t b = game_won ? 255 :   0;
+static void draw_end_frame(void) {
+    if (!game_won) {
+        display_clear();
         for (int y = 0; y < ROWS; y++)
             for (int x = 0; x < COLS; x++)
-                display_set((uint8_t)x, (uint8_t)y, r, g, b);
+                if (locked[y][x])
+                    display_set((uint8_t)x, (uint8_t)y, 180, 0, 0);
+        return;
     }
+    if (current_ms - last_confetti_ms >= CONFETTI_STEP_MS) {
+        last_confetti_ms = current_ms;
+        for (int i = 0; i < 3; i++) {
+            int idx = rand() % N_CONFETTI;
+            int ci  = rand() % N_CONF_COLS;
+            confetti[idx].x = (uint8_t)(rand() % COLS);
+            confetti[idx].y = (uint8_t)(rand() % ROWS);
+            confetti[idx].r = CONF_COLS[ci][0];
+            confetti[idx].g = CONF_COLS[ci][1];
+            confetti[idx].b = CONF_COLS[ci][2];
+        }
+    }
+    display_clear();
+    for (int i = 0; i < N_CONFETTI; i++)
+        display_set(confetti[i].x, confetti[i].y,
+                    confetti[i].r, confetti[i].g, confetti[i].b);
 }
 
 /* ------------------------------------------------------------------ */
@@ -73,12 +114,13 @@ void stacker_init(void) {
     block_width  = INITIAL_WIDTH;
     direction    = 1;
     speed_ms     = INITIAL_SPEED;
-    last_move_ms = 0;
-    in_end_state = 0;
-    end_time_ms  = 0;
-    current_ms   = 0;
-    locks_done   = 0;
-    game_won     = 0;
+    last_move_ms     = 0;
+    in_end_state     = 0;
+    end_time_ms      = 0;
+    current_ms       = 0;
+    locks_done       = 0;
+    game_won         = 0;
+    last_confetti_ms = 0;
     draw();
 }
 
@@ -141,6 +183,7 @@ void stacker_on_input(InputEvent ev) {
         in_end_state = 1;
         end_time_ms  = current_ms;
         game_won     = 1;
+        init_confetti();
         return;
     }
 
