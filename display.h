@@ -3,6 +3,10 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define DISPLAY_W 10
 #define DISPLAY_H 25
 
@@ -20,5 +24,9 @@ void display_clear(void);
 
 /* Push framebuffer to physical display or SDL2 window. */
 void display_show(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* DISPLAY_H_ */

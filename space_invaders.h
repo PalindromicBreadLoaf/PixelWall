@@ -2,6 +2,10 @@
 #define SPACE_INVADERS_H_
 
 #include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 #include "game.h"
 
 void si_init(void);
@@ -29,5 +33,9 @@ void si_kill_invader(int row, int col);
 void si_set_group_y(int y);
 void si_set_bullet(int x, int y);
 void si_set_inv_bullet(int x, int y);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* SPACE_INVADERS_H_ */

@@ -2,6 +2,10 @@
 #define STACKER_H_
 
 #include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 #include "game.h"
 
 /* Game interface */
@@ -20,5 +24,9 @@ unsigned long stacker_get_speed_ms(void);
 int  stacker_is_cell_locked(uint8_t x, uint8_t y);
 int  stacker_won(void);
 void stacker_set_block_x(int x);   /* force block position for tests */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* STACKER_H_ */

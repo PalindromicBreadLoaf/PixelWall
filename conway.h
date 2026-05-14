@@ -2,6 +2,10 @@
 #define CONWAY_H_
 
 #include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 #include "game.h"
 
 /* Game interface — used by the main loop. */
@@ -17,5 +21,9 @@ void conway_clear_grid(void);
 void conway_set_cell(uint8_t x, uint8_t y, int alive);
 int  conway_get_cell(uint8_t x, uint8_t y);
 int  conway_in_stasis(void);   /* non-zero when stasis or extinction detected */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* CONWAY_H_ */
