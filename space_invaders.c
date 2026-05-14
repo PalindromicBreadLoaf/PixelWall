@@ -44,8 +44,10 @@ static unsigned long last_confetti_ms;
 #define END_GAME_WIN  2
 #define END_GAME_OVER 3
 
+#define MAX_BULLETS 3
+
 /* Per-level tuning (index = level-1). */
-static const unsigned long INV_MOVE_MS[MAX_LEVELS] = {600, 430, 300, 200};
+static const unsigned long INV_MOVE_MS[MAX_LEVELS] = {900, 650, 450, 300};
 static const unsigned long INV_FIRE_MS[MAX_LEVELS]  = {3000, 2400, 1800, 1300};
 
 /* Invader row colours: top=magenta, mid=cyan, bottom=yellow. */
@@ -65,9 +67,10 @@ static int          player_x;
 static int          player_dir;
 static unsigned long last_player_move;
 
-static int          bullet_x;       /* -1 = inactive */
-static int          bullet_y;
-static unsigned long last_bullet_move;
+static struct {
+    int x, y;
+    unsigned long last_move;
+} bullets[MAX_BULLETS];  /* y == -1 means inactive */
 
 static int          inv_bul_x;      /* -1 = inactive */
 static int          inv_bul_y;
@@ -135,8 +138,9 @@ static void draw(void) {
 
     display_set((uint8_t)player_x, PLAYER_ROW, 255, 255, 255);
 
-    if (bullet_y >= 0)
-        display_set((uint8_t)bullet_x, (uint8_t)bullet_y, 0, 255, 100);
+    for (int i = 0; i < MAX_BULLETS; i++)
+        if (bullets[i].y >= 0)
+            display_set((uint8_t)bullets[i].x, (uint8_t)bullets[i].y, 0, 255, 100);
 
     if (inv_bul_y >= 0)
         display_set((uint8_t)inv_bul_x, (uint8_t)inv_bul_y, 255, 50, 0);
@@ -171,14 +175,14 @@ static void draw_end_frame(void) {
 
 /* ------------------------------------------------------------------ */
 
-static void check_bullet_hit(void) {
+static void check_bullet_hit(int i) {
     for (int r = 0; r < INV_ROWS; r++) {
         for (int c = 0; c < INV_COLS; c++) {
             if (!alive[r][c]) continue;
-            if (bullet_x == group_x + c * INV_X_SPACING &&
-                bullet_y == group_y + r * INV_Y_SPACING) {
-                alive[r][c] = 0;
-                bullet_y    = -1;
+            if (bullets[i].x == group_x + c * INV_X_SPACING &&
+                bullets[i].y == group_y + r * INV_Y_SPACING) {
+                alive[r][c]  = 0;
+                bullets[i].y = -1;
                 if (count_alive() == 0)
                     trigger_end(level >= MAX_LEVELS ? END_GAME_WIN : END_LEVEL_WIN);
                 return;
@@ -256,9 +260,8 @@ static void init_level(void) {
     inv_dir = 1;
     last_inv_move = 0;
 
-    bullet_x  = bullet_y  = -1;
+    for (int i = 0; i < MAX_BULLETS; i++) { bullets[i].y = -1; bullets[i].last_move = 0; }
     inv_bul_x = inv_bul_y = -1;
-    last_bullet_move  = 0;
     last_inv_bul_move = 0;
     last_inv_fire     = 0;
 
@@ -301,14 +304,15 @@ void si_update(unsigned long now_ms) {
         else if (player_x < 0)      { player_x = 0;             player_dir =  1; }
     }
 
-    /* Move player bullet. */
-    if (bullet_y >= 0 && now_ms - last_bullet_move >= BULLET_SPEED_MS) {
-        last_bullet_move = now_ms;
-        bullet_y--;
-        if (bullet_y < 0)
-            bullet_y = -1;
-        else
-            check_bullet_hit();
+    /* Move player bullets. */
+    for (int i = 0; i < MAX_BULLETS; i++) {
+        if (bullets[i].y < 0) continue;
+        if (now_ms - bullets[i].last_move >= BULLET_SPEED_MS) {
+            bullets[i].last_move = now_ms;
+            bullets[i].y--;
+            if (bullets[i].y >= 0)
+                check_bullet_hit(i);
+        }
     }
 
     /* Move invaders. */
@@ -343,10 +347,15 @@ void si_on_input(InputEvent ev) {
     if (end_type != END_NONE) return;
     if (ev == INPUT_DOUBLE_TAP) {
         player_frozen = !player_frozen;
-    } else if (ev == INPUT_TAP && bullet_y < 0) {
-        bullet_x         = player_x;
-        bullet_y         = PLAYER_ROW - 1;
-        last_bullet_move = current_ms;
+    } else if (ev == INPUT_TAP) {
+        for (int i = 0; i < MAX_BULLETS; i++) {
+            if (bullets[i].y < 0) {
+                bullets[i].x         = player_x;
+                bullets[i].y         = PLAYER_ROW - 1;
+                bullets[i].last_move = current_ms;
+                break;
+            }
+        }
     }
 }
 
@@ -359,8 +368,8 @@ int si_is_over(void) {
 
 int  si_get_player_x(void)              { return player_x;      }
 int  si_get_player_frozen(void)         { return player_frozen;  }
-int  si_get_bullet_x(void)              { return bullet_x;  }
-int  si_get_bullet_y(void)              { return bullet_y;  }
+int  si_get_bullet_x(void)              { return bullets[0].x; }
+int  si_get_bullet_y(void)              { return bullets[0].y; }
 int  si_get_inv_bullet_x(void)          { return inv_bul_x; }
 int  si_get_inv_bullet_y(void)          { return inv_bul_y; }
 int  si_get_group_x(void)               { return group_x;   }
@@ -380,7 +389,7 @@ void si_kill_invader(int row, int col) {
 }
 
 void si_set_group_y(int y)         { group_y   = y; }
-void si_set_bullet(int x, int y)   { bullet_x  = x; bullet_y  = y; }
+void si_set_bullet(int x, int y)   { bullets[0].x = x; bullets[0].y = y; }
 void si_set_inv_bullet(int x, int y) { inv_bul_x = x; inv_bul_y = y; }
 
 /* ------------------------------------------------------------------ */
