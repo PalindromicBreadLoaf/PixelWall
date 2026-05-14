@@ -154,9 +154,9 @@ static void test_overlap_none_loses(void) {
     /* Game should be in end state but not yet over (still in END_DELAY_MS). */
     ASSERT(!stacker_is_over(), "is_over() false immediately after lose");
 
-    /* Advance time past END_DELAY_MS. */
-    STEP(1500);
-    ASSERT(stacker_is_over(), "is_over() true after END_DELAY_MS on lose");
+    /* Advance time past full end sequence (fall + score display). */
+    STEP(2800);
+    ASSERT(stacker_is_over(), "is_over() true after end animation on lose");
 }
 
 static void test_speed_increases(void) {
@@ -192,8 +192,8 @@ static void test_win(void) {
     ASSERT(stacker_won(), "game_won after reaching row 0");
     ASSERT(!stacker_is_over(), "is_over() false immediately after win");
 
-    STEP(1500);
-    ASSERT(stacker_is_over(), "is_over() true after END_DELAY_MS on win");
+    STEP(2800);
+    ASSERT(stacker_is_over(), "is_over() true after end animation on win");
 }
 
 static void test_ignore_input_after_game_over(void) {

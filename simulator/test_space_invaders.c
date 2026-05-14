@@ -145,7 +145,7 @@ static void test_invaders_move(void) {
     si_init();
 
     int x0 = si_get_group_x();
-    STEP(600);  /* one INV_MOVE_MS at level 1 */
+    STEP(1000);  /* one INV_MOVE_MS at level 1 (900 ms) */
     ASSERT(si_get_group_x() != x0, "invader group moves after inv_move_ms");
 }
 
@@ -154,10 +154,11 @@ static void test_invaders_bounce_and_descend(void) {
     display_init();
     si_init();
 
-    /* Drive the group to the right wall by stepping many times. */
-    unsigned long t = 600;
+    /* Drive the group to the right wall by stepping many times.
+       Each step is > INV_MOVE_MS[0]=900 ms so exactly one invader move fires. */
+    unsigned long t = 1000;
     int y_before = -1;
-    for (int i = 0; i < 20; i++, t += 600) {
+    for (int i = 0; i < 20; i++, t += 1000) {
         int prev_x = si_get_group_x();
         STEP(t);
         /* When the group reverses direction it also descends. */
@@ -185,7 +186,7 @@ static void test_game_over_invader_reaches_player(void) {
     si_set_group_y(19);
 
     /* One invader move will trigger the game-over check. */
-    STEP(600);
+    STEP(1000);  /* > INV_MOVE_MS[0]=900 */
     ASSERT(si_in_end_state(), "game over when invader reaches player row");
 }
 
