@@ -13,6 +13,8 @@
 
 #define N_CONFETTI       14
 #define CONFETTI_STEP_MS 120UL
+#define FALL_PAUSE_MS     400UL
+#define FALL_STEP_MS       65UL
 
 static const uint8_t CONF_COLS[7][3] = {
     {255,  50,  50},
@@ -27,6 +29,11 @@ static const uint8_t CONF_COLS[7][3] = {
 
 static struct { uint8_t x, y, r, g, b; } confetti[N_CONFETTI];
 static unsigned long last_confetti_ms;
+
+static int           fall_offset;
+static int           fall_vel;
+static int           fall_done;
+static unsigned long last_fall_ms;
 
 /* Moving block color */
 #define BLK_R 255
@@ -80,11 +87,32 @@ static void init_confetti(void) {
 
 static void draw_end_frame(void) {
     if (!game_won) {
+        if (current_ms - end_time_ms < FALL_PAUSE_MS) {
+            display_clear();
+            for (int y = 0; y < ROWS; y++)
+                for (int x = 0; x < COLS; x++)
+                    if (locked[y][x])
+                        display_set((uint8_t)x, (uint8_t)y, 180, 0, 0);
+            return;
+        }
+        if (!fall_done && current_ms - last_fall_ms >= FALL_STEP_MS) {
+            last_fall_ms = current_ms;
+            fall_vel++;
+            fall_offset += fall_vel;
+            if (fall_offset >= ROWS)
+                fall_done = 1;
+        }
         display_clear();
-        for (int y = 0; y < ROWS; y++)
-            for (int x = 0; x < COLS; x++)
-                if (locked[y][x])
-                    display_set((uint8_t)x, (uint8_t)y, 180, 0, 0);
+        if (!fall_done) {
+            for (int y = 0; y < ROWS; y++) {
+                for (int x = 0; x < COLS; x++) {
+                    if (!locked[y][x]) continue;
+                    int ny = y + fall_offset;
+                    if (ny < ROWS)
+                        display_set((uint8_t)x, (uint8_t)ny, LCK_R, LCK_G, LCK_B);
+                }
+            }
+        }
         return;
     }
     if (current_ms - last_confetti_ms >= CONFETTI_STEP_MS) {
@@ -121,6 +149,10 @@ void stacker_init(void) {
     locks_done       = 0;
     game_won         = 0;
     last_confetti_ms = 0;
+    fall_offset      = 0;
+    fall_vel         = 0;
+    fall_done        = 0;
+    last_fall_ms     = 0;
     draw();
 }
 
@@ -174,6 +206,10 @@ void stacker_on_input(InputEvent ev) {
         in_end_state = 1;
         end_time_ms  = current_ms;
         game_won     = 0;
+        fall_offset  = 0;
+        fall_vel     = 0;
+        fall_done    = 0;
+        last_fall_ms = current_ms;
         return;
     }
 
