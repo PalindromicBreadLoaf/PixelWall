@@ -7,6 +7,7 @@
 #include "space_invaders.h"
 
 #define SCREENSAVER_TIMEOUT_MS 30000UL
+#define WIPE_STEP_MS              12UL  /* ms per row — 25 rows = 300 ms total */
 
 static const Game *games[] = {
     &stacker_game,
@@ -16,6 +17,10 @@ static const Game *games[] = {
 
 static int current_game   = 0;
 static int in_screensaver = 0;
+static int in_wipe        = 0;
+static int wipe_next      = 0;
+static int wipe_row       = 0;
+static unsigned long last_wipe_ms = 0;
 
 void setup() {
     /* Seed the C rand() used by Conway and Space Invaders with floating-
@@ -36,8 +41,10 @@ void loop() {
             in_screensaver = 0;
             games[current_game]->init();
         } else if (ev == INPUT_HOLD) {
-            current_game = (current_game + 1) % NUM_GAMES;
-            games[current_game]->init();
+            wipe_next    = (current_game + 1) % NUM_GAMES;
+            wipe_row     = 0;
+            in_wipe      = 1;
+            last_wipe_ms = now;
         } else {
             games[current_game]->on_input(ev);
         }
@@ -50,7 +57,19 @@ void loop() {
         conway_init();
     }
 
-    if (in_screensaver) {
+    if (in_wipe) {
+        if (now - last_wipe_ms >= WIPE_STEP_MS) {
+            last_wipe_ms = now;
+            for (int x = 0; x < DISPLAY_W; x++)
+                display_set((uint8_t)x, (uint8_t)wipe_row, 0, 0, 0);
+            wipe_row++;
+            if (wipe_row >= DISPLAY_H) {
+                in_wipe      = 0;
+                current_game = wipe_next;
+                games[current_game]->init();
+            }
+        }
+    } else if (in_screensaver) {
         conway_update(now);
     } else {
         games[current_game]->update(now);

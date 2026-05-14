@@ -12,6 +12,7 @@
 extern void display_sim_quit(void);
 
 #define SCREENSAVER_TIMEOUT_MS 30000UL
+#define WIPE_STEP_MS              12UL  /* ms per row — 25 rows = 300 ms total */
 
 static const Game *games[] = {
     &stacker_game,
@@ -27,6 +28,10 @@ int main(void) {
 
     int current_game  = 0;
     int in_screensaver = 0;
+    int in_wipe       = 0;
+    int wipe_next     = 0;
+    int wipe_row      = 0;
+    unsigned long last_wipe_ms = 0;
 
     games[current_game]->init();
 
@@ -39,8 +44,10 @@ int main(void) {
                 in_screensaver = 0;
                 games[current_game]->init();
             } else if (ev == INPUT_HOLD) {
-                current_game = (current_game + 1) % NUM_GAMES;
-                games[current_game]->init();
+                wipe_next    = (current_game + 1) % NUM_GAMES;
+                wipe_row     = 0;
+                in_wipe      = 1;
+                last_wipe_ms = now;
             } else {
                 games[current_game]->on_input(ev);
             }
@@ -53,7 +60,19 @@ int main(void) {
             conway_init();
         }
 
-        if (in_screensaver) {
+        if (in_wipe) {
+            if (now - last_wipe_ms >= WIPE_STEP_MS) {
+                last_wipe_ms = now;
+                for (int x = 0; x < DISPLAY_W; x++)
+                    display_set((uint8_t)x, (uint8_t)wipe_row, 0, 0, 0);
+                wipe_row++;
+                if (wipe_row >= DISPLAY_H) {
+                    in_wipe      = 0;
+                    current_game = wipe_next;
+                    games[current_game]->init();
+                }
+            }
+        } else if (in_screensaver) {
             conway_update(now);
         } else {
             games[current_game]->update(now);
