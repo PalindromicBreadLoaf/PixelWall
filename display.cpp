@@ -17,7 +17,7 @@
 static CRGB leds[NUM_LEDS];
 
 /* Maps logical pixel (x, y) to the physical LED index for this wiring.
-   Matches the original Tetris.ino layout: each 5×5 panel is wired in a
+   Matches the PixelWall.ino layout: each 5×5 panel is wired in a
    serpentine pattern, panels arranged 2 wide × 5 tall. */
 static short transform_pixel(int x, int y) {
     if (x < 0 || x >= DISPLAY_W || y < 0 || y >= DISPLAY_H) return -1;
