@@ -24,6 +24,10 @@ static int wipe_next      = 0;
 static int wipe_col       = 0;
 static unsigned long last_wipe_ms = 0;
 
+/* Boot time doubles as the first "activity" timestamp so the screensaver can
+   fire after the idle timeout even if the user never presses the button. */
+static unsigned long start_ms = 0;
+
 /* Screensaver curtain: a white-row transition into/out of Conway. */
 static int ss_trans = 0;   /* curtain active */
 static int ss_enter = 0;   /* 1 = into screensaver, 0 = back to game */
@@ -42,6 +46,7 @@ void setup() {
     display_init();
     input_init();
     games[current_game]->init();
+    start_ms = millis();
 }
 
 void loop() {
@@ -69,9 +74,10 @@ void loop() {
         }
     }
 
+    unsigned long last_active = input_last_event_ms();
+    if (last_active == 0) last_active = start_ms;
     if (!in_screensaver && !ss_trans && !in_wipe
-            && input_last_event_ms() != 0
-            && now - input_last_event_ms() > SCREENSAVER_TIMEOUT_MS) {
+            && now - last_active > SCREENSAVER_TIMEOUT_MS) {
         /* drop the curtain on the way into the screensaver */
         ss_trans   = 1;
         ss_enter   = 1;

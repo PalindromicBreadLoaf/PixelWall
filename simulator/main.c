@@ -45,6 +45,11 @@ int main(void) {
        stable image instead of the scene's sparse per-tick redraws. */
     uint8_t scene_buf[DISPLAY_H][DISPLAY_W][3];
 
+    /* Boot time doubles as the first "activity" timestamp so the screensaver
+       can fire after the idle timeout even if the user never presses the
+       button. */
+    unsigned long start_ms = (unsigned long)SDL_GetTicks();
+
     games[current_game]->init();
 
     while (!input_sim_should_quit()) {
@@ -72,9 +77,10 @@ int main(void) {
             }
         }
 
+        unsigned long last_active = input_last_event_ms();
+        if (last_active == 0) last_active = start_ms;
         if (!in_screensaver && !ss_trans && !in_wipe
-                && input_last_event_ms() != 0
-                && now - input_last_event_ms() > SCREENSAVER_TIMEOUT_MS) {
+                && now - last_active > SCREENSAVER_TIMEOUT_MS) {
             /* drop the curtain on the way into the screensaver */
             ss_trans   = 1;
             ss_enter   = 1;
