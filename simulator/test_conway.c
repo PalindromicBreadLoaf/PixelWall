@@ -259,10 +259,13 @@ static void test_drawing(void) {
 
     uint8_t r, g, b;
     display_get(5, 11, &r, &g, &b);
-    ASSERT(r != 0 || g != 0 || b != 0, "live cell drawn with non-black color");
+    int live_sum = (int)r + g + b;
+    ASSERT(live_sum != 0, "live cell drawn with non-black color");
 
     display_get(4, 12, &r, &g, &b);
-    ASSERT(r == 0 && g == 0 && b == 0, "dead cell drawn as black");
+    int dead_sum = (int)r + g + b;
+    ASSERT(dead_sum != 0, "non-alive cell drawn with non-black dim color");
+    ASSERT(dead_sum < live_sum, "non-alive cell dimmer overall than live cell");
 }
 
 static void test_oscillator_detected(void) {

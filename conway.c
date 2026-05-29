@@ -9,6 +9,8 @@
 #define RESEED_MS 2000UL  /* pause before re-seeding after stasis */
 
 #define CELL_BRIGHTNESS 200  /* 0–255 */
+#define DIM_DIVISOR       3  /* non-alive cells drawn at 1/DIM_DIVISOR of live brightness */
+#define DIM_HUE_OFFSET  180  /* degrees: non-alive cells use the complementary hue */
 #define HUE_STEP          2  /* degrees per generation (full cycle ≈ 135 s) */
 
 static int cell_hue = 0;  /* 0..359 */
@@ -42,8 +44,6 @@ static unsigned long stasis_ms    = 0;
 
 static uint32_t hash_history[HASH_HISTORY];
 static int      hash_count = 0;   /* total entries recorded (not capped) */
-
-/* ------------------------------------------------------------------ */
 
 static uint32_t fnv1a(const uint8_t *buf, int len) {
     uint32_t h = 2166136261u;
@@ -85,12 +85,17 @@ static void do_seed(void) {
 static void draw_grid(void) {
     uint8_t r, g, b;
     hue_to_rgb(cell_hue, &r, &g, &b);
+    uint8_t dr, dg, db;
+    hue_to_rgb((cell_hue + DIM_HUE_OFFSET) % 360, &dr, &dg, &db);
+    dr /= DIM_DIVISOR;
+    dg /= DIM_DIVISOR;
+    db /= DIM_DIVISOR;
     for (int y = 0; y < ROWS; y++) {
         for (int x = 0; x < COLS; x++) {
             if (grid[y][x])
                 display_set((uint8_t)x, (uint8_t)y, r, g, b);
             else
-                display_set((uint8_t)x, (uint8_t)y, 0, 0, 0);
+                display_set((uint8_t)x, (uint8_t)y, dr, dg, db);
         }
     }
 }
