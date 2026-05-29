@@ -86,6 +86,7 @@ static unsigned long last_inv_fire;
 
 static int           player_frozen;  /* 1 = auto-oscillation paused */
 static int           level;
+static int           best_level;   /* high level reached, shown on game over */
 static int           end_type;
 static unsigned long end_time_ms;
 static unsigned long current_ms;
@@ -184,6 +185,21 @@ static void trigger_end(int type) {
     last_explosion_ms = current_ms;
     if (type == END_GAME_WIN)   init_confetti_rainbow();
     if (type == END_LEVEL_WIN)  init_confetti_green();
+    /* The current level was already persisted by init_level() on entry, so the
+       stored value is the best level reached — capture it for the readout. */
+    if (type == END_GAME_OVER || type == END_GAME_WIN) {
+        uint8_t hi = eeprom_read(SI_EEPROM_ADDR);
+        best_level = (hi == 0xFF) ? 0 : hi;
+    }
+}
+
+/* Dim readout of the best level reached: dots climb the bottom-left corner,
+   one per level.  Drawn on top of the terminal end visuals (game over / win),
+   clear of the centred explosion and the upper invader rows. */
+static void draw_best_level(void) {
+    if (end_type != END_GAME_OVER && end_type != END_GAME_WIN) return;
+    for (int i = 0; i < best_level && i < DISPLAY_H; i++)
+        display_set(0, (uint8_t)(PLAYER_ROW - i), 90, 70, 0);
 }
 
 static void draw(void) {
@@ -239,6 +255,7 @@ static void draw_end_frame(void) {
                 }
             }
         }
+        draw_best_level();
         return;
     }
     /* WIN states: twinkling confetti. */
@@ -260,6 +277,7 @@ static void draw_end_frame(void) {
     for (int i = 0; i < N_CONFETTI; i++)
         display_set(confetti[i].x, confetti[i].y,
                     confetti[i].r, confetti[i].g, confetti[i].b);
+    draw_best_level();
 }
 
 /* ------------------------------------------------------------------ */
@@ -374,6 +392,7 @@ static void init_level(void) {
 
 void si_init(void) {
     level       = 1;
+    best_level  = 0;
     player_x    = 0;
     player_dir  = 1;
     last_player_move = 0;
