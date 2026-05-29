@@ -59,9 +59,6 @@ static const uint8_t ROW_R[INV_ROWS] = {200,   0, 200};
 static const uint8_t ROW_G[INV_ROWS] = {  0, 200, 200};
 static const uint8_t ROW_B[INV_ROWS] = {200, 200,   0};
 
-/* EEPROM address for Space Invaders high level. */
-#define SI_EEPROM_ADDR 0
-
 /* ------------------------------------------------------------------ */
 
 static uint8_t      alive[INV_ROWS][INV_COLS];
@@ -188,7 +185,7 @@ static void trigger_end(int type) {
     /* The current level was already persisted by init_level() on entry, so the
        stored value is the best level reached — capture it for the readout. */
     if (type == END_GAME_OVER || type == END_GAME_WIN) {
-        uint8_t hi = eeprom_read(SI_EEPROM_ADDR);
+        uint8_t hi = eeprom_read(EEPROM_ADDR_SI_LEVEL);
         best_level = (hi == 0xFF) ? 0 : hi;
     }
 }
@@ -381,9 +378,9 @@ static void init_level(void) {
     level_intro_start_ms = 0;
 
     /* Persist the highest level reached. */
-    uint8_t hi = eeprom_read(SI_EEPROM_ADDR);
+    uint8_t hi = eeprom_read(EEPROM_ADDR_SI_LEVEL);
     if (hi == 0xFF || level > hi)
-        eeprom_write(SI_EEPROM_ADDR, (uint8_t)level);
+        eeprom_write(EEPROM_ADDR_SI_LEVEL, (uint8_t)level);
 
     draw();
 }

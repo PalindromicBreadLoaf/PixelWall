@@ -24,9 +24,6 @@
 #define FALL_PAUSE_MS     400UL
 #define FALL_STEP_MS       65UL
 
-/* EEPROM address for Stacker best score (rows locked). */
-#define STACKER_EEPROM_ADDR 1
-
 static const uint8_t CONF_COLS[7][3] = {
     {255,  50,  50},
     {255, 160,   0},
@@ -226,10 +223,10 @@ void stacker_update(unsigned long now_ms) {
 /* Record prev_high_score for the end-of-round marker, then persist the new
    score if it beat the stored best (0xFF = never written). */
 static void save_high_score(void) {
-    uint8_t hi = eeprom_read(STACKER_EEPROM_ADDR);
+    uint8_t hi = eeprom_read(EEPROM_ADDR_STACKER_BEST);
     prev_high_score = (hi == 0xFF) ? 0 : hi;
     if (locks_done > prev_high_score)
-        eeprom_write(STACKER_EEPROM_ADDR, (uint8_t)locks_done);
+        eeprom_write(EEPROM_ADDR_STACKER_BEST, (uint8_t)locks_done);
 }
 
 void stacker_on_input(InputEvent ev) {
