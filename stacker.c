@@ -68,6 +68,7 @@ static unsigned long end_time_ms;
 static unsigned long current_ms;
 static int      locks_done;      /* rows locked so far (drives speed) */
 static int      game_won;
+static int      prev_high_score; /* best before this round — the line to beat */
 
 /* ------------------------------------------------------------------ */
 
@@ -101,6 +102,15 @@ static void draw_score(void) {
     int dots = (int)(score_elapsed / SCORE_STEP_MS);
     if (dots > locks_done) dots = locks_done;
     display_clear();
+
+    /* Dim reference line at the previous best height — the score to beat.
+       The gold count-up below is drawn on top so it shows through. */
+    if (prev_high_score > 0 && prev_high_score <= ROWS) {
+        int hy = ROWS - prev_high_score;
+        for (int x = 0; x < COLS; x++)
+            display_set((uint8_t)x, (uint8_t)hy, 60, 48, 12);
+    }
+
     for (int i = 0; i < dots; i++)
         display_set(DISPLAY_W / 2, DISPLAY_H - 1 - i, 255, 200, 50);
 }
@@ -179,6 +189,7 @@ void stacker_init(void) {
     current_ms       = 0;
     locks_done       = 0;
     game_won         = 0;
+    prev_high_score  = 0;
     last_confetti_ms = 0;
     fall_offset      = 0;
     fall_vel         = 0;
@@ -212,6 +223,15 @@ void stacker_update(unsigned long now_ms) {
     draw();
 }
 
+/* Record prev_high_score for the end-of-round marker, then persist the new
+   score if it beat the stored best (0xFF = never written). */
+static void save_high_score(void) {
+    uint8_t hi = eeprom_read(STACKER_EEPROM_ADDR);
+    prev_high_score = (hi == 0xFF) ? 0 : hi;
+    if (locks_done > prev_high_score)
+        eeprom_write(STACKER_EEPROM_ADDR, (uint8_t)locks_done);
+}
+
 void stacker_on_input(InputEvent ev) {
     if (ev != INPUT_TAP || in_end_state) return;
 
@@ -234,10 +254,7 @@ void stacker_on_input(InputEvent ev) {
     }
 
     if (!any_locked) {
-        /* Save score if it beats the stored high score. */
-        uint8_t hi = eeprom_read(STACKER_EEPROM_ADDR);
-        if (hi == 0xFF || locks_done > hi)
-            eeprom_write(STACKER_EEPROM_ADDR, (uint8_t)locks_done);
+        save_high_score();
         in_end_state = 1;
         end_time_ms  = current_ms;
         game_won     = 0;
@@ -251,10 +268,7 @@ void stacker_on_input(InputEvent ev) {
     locks_done++;
 
     if (stack_row == 0) {
-        /* Save score if it beats the stored high score. */
-        uint8_t hi = eeprom_read(STACKER_EEPROM_ADDR);
-        if (hi == 0xFF || locks_done > hi)
-            eeprom_write(STACKER_EEPROM_ADDR, (uint8_t)locks_done);
+        save_high_score();
         in_end_state = 1;
         end_time_ms  = current_ms;
         game_won     = 1;
