@@ -7,6 +7,11 @@
 extern "C" {
 #endif
 
+/* Persistent-storage address map — one byte per game.  Keep these unique;
+   allocate a new address here rather than hard-coding a literal in a game. */
+#define EEPROM_ADDR_SI_LEVEL      0   /* Space Invaders: highest level reached */
+#define EEPROM_ADDR_STACKER_BEST  1   /* Stacker: best score (rows locked)     */
+
 /* Read one byte from persistent storage. Returns 0xFF if the address has never
    been written (matches the blank-EEPROM state on a fresh Arduino). */
 uint8_t eeprom_read(uint8_t addr);
