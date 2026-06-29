@@ -15,25 +15,22 @@ static int tests_failed = 0;
     tests_run++;                                                 \
     if (cond) {                                                  \
         tests_passed++;                                          \
-        printf("  PASS  %s\n", msg);                            \
+        printf("  PASS  %s\n", msg);                             \
     } else {                                                     \
         tests_failed++;                                          \
-        printf("  FAIL  %s  (line %d)\n", msg, __LINE__);       \
+        printf("  FAIL  %s  (line %d)\n", msg, __LINE__);        \
     }                                                            \
 } while (0)
 
 #define STEP(ms)  si_update((unsigned long)(ms))
 #define TAP()     si_on_input(INPUT_TAP)
 
-/* Invader grid dimensions exposed implicitly through si_get_invader_alive.
-   Hard-code the same constants used by the implementation. */
+// Test copy of the invader grid layout.
 #define INV_COLS       4
 #define INV_ROWS       3
 #define INV_X_SPACING  2
 #define INV_Y_SPACING  2
 #define PLAYER_ROW    (DISPLAY_H - 1)
-
-/* ------------------------------------------------------------------ */
 
 static void test_init_state(void) {
     puts("init_state");
@@ -47,7 +44,6 @@ static void test_init_state(void) {
     ASSERT(si_get_alive_count() == INV_ROWS * INV_COLS, "all invaders alive");
     ASSERT(!si_in_end_state(),                 "not in end state");
 
-    /* All cells in the grid are marked alive. */
     int all = 1;
     for (int r = 0; r < INV_ROWS && all; r++)
         for (int c = 0; c < INV_COLS && all; c++)
@@ -61,10 +57,9 @@ static void test_player_oscillates(void) {
     si_init();
 
     int x0 = si_get_player_x();
-    STEP(200);  /* one PLAYER_SPEED_MS */
+    STEP(200);
     ASSERT(si_get_player_x() != x0, "player moves after PLAYER_SPEED_MS");
 
-    /* Drive to right wall and verify it reverses. */
     for (int t = 400; t <= 4000; t += 200) STEP(t);
     ASSERT(si_get_player_x() <= DISPLAY_W - 1, "player stays in bounds (right)");
 
@@ -79,7 +74,7 @@ static void test_tap_fires_bullet(void) {
 
     ASSERT(si_get_bullet_y() == -1, "no bullet before tap");
 
-    STEP(0);  /* update current_ms */
+    STEP(0);
     TAP();
     ASSERT(si_get_bullet_y() == PLAYER_ROW - 1, "bullet appears one row above player");
     ASSERT(si_get_bullet_x() == si_get_player_x(), "bullet x matches player x");
@@ -94,7 +89,7 @@ static void test_bullet_moves_up(void) {
     TAP();
     int y0 = si_get_bullet_y();
 
-    STEP(60);   /* one BULLET_SPEED_MS */
+    STEP(60);
     ASSERT(si_get_bullet_y() == y0 - 1, "bullet moves up one row per tick");
 }
 
@@ -105,7 +100,7 @@ static void test_only_one_bullet(void) {
 
     STEP(0); TAP();
     int y0 = si_get_bullet_y();
-    TAP();  /* second tap while bullet active */
+    TAP();
     ASSERT(si_get_bullet_y() == y0, "second tap ignored while bullet in flight");
 }
 
@@ -114,10 +109,9 @@ static void test_bullet_hits_invader(void) {
     display_init();
     si_init();
 
-    /* Top-left invader is at (group_x + 0, group_y + 0) = (0, 1). */
-    /* Place bullet one row below it so next tick it moves up and hits. */
+    // Start one row below the top-left invader.
     si_set_bullet(0, 2);
-    STEP(60);   /* bullet moves to (0, 1) → hits invader [0][0] */
+    STEP(60);
 
     ASSERT(!si_get_invader_alive(0, 0), "invader [0][0] killed");
     ASSERT(si_get_bullet_y() == -1,     "bullet cleared after hit");
@@ -129,12 +123,11 @@ static void test_bullet_clears_at_top(void) {
     display_init();
     si_init();
 
-    si_set_bullet(5, 1);   /* bullet near top, no invader at x=5 row=1 */
-    STEP(60);              /* moves to row 0 — still on screen, no hit */
+    si_set_bullet(5, 1);
+    STEP(60);
     ASSERT(si_get_bullet_y() == 0 || si_get_bullet_y() == -1,
            "bullet at row 0 or cleared");
 
-    /* One more tick takes it off the top. */
     STEP(120);
     ASSERT(si_get_bullet_y() == -1, "bullet cleared after leaving display");
 }
@@ -145,7 +138,7 @@ static void test_invaders_move(void) {
     si_init();
 
     int x0 = si_get_group_x();
-    STEP(1000);  /* one INV_MOVE_MS at level 1 (900 ms) */
+    STEP(1000);
     ASSERT(si_get_group_x() != x0, "invader group moves after inv_move_ms");
 }
 
@@ -154,24 +147,17 @@ static void test_invaders_bounce_and_descend(void) {
     display_init();
     si_init();
 
-    /* Drive the group to the right wall by stepping many times.
-       Each step is > INV_MOVE_MS[0]=900 ms so exactly one invader move fires. */
+    // Step long enough to hit the wall and descend.
     unsigned long t = 1000;
-    int y_before = -1;
     for (int i = 0; i < 20; i++, t += 1000) {
         int prev_x = si_get_group_x();
         STEP(t);
-        /* When the group reverses direction it also descends. */
-        if (si_get_group_x() <= prev_x && si_get_group_x() < si_get_group_x() + 1) {
-            y_before = si_get_group_y();
+        if (si_get_group_x() <= prev_x) {
             break;
         }
     }
 
-    /* After a wall hit, group_y should have increased by 1. */
     int y0 = si_get_group_y();
-    /* Find where descent happened. */
-    (void)y_before;  /* used implicitly: the descent happened during the loop */
     ASSERT(y0 > 1, "group descended after hitting a wall");
 }
 
@@ -180,13 +166,10 @@ static void test_game_over_invader_reaches_player(void) {
     display_init();
     si_init();
 
-    /* Teleport group so bottom row of invaders is just above game-over threshold. */
-    /* Bottom invader at group_y + (INV_ROWS-1)*INV_Y_SPACING = group_y + 4.
-       Game over when that >= PLAYER_ROW - 1 = 23. So set group_y = 19. */
+    // Put the bottom row just above the game-over threshold.
     si_set_group_y(19);
 
-    /* One invader move will trigger the game-over check. */
-    STEP(1000);  /* > INV_MOVE_MS[0]=900 */
+    STEP(1000);
     ASSERT(si_in_end_state(), "game over when invader reaches player row");
 }
 
@@ -195,30 +178,25 @@ static void test_level_advances_on_all_dead(void) {
     display_init();
     si_init();
 
-    /* Kill all invaders except one, then kill the last via bullet. */
     for (int r = 0; r < INV_ROWS; r++)
         for (int c = 0; c < INV_COLS; c++)
             si_kill_invader(r, c);
 
-    /* Revive one invader so we can kill it with a bullet. */
-    /* Actually: just kill all directly and check count. */
     ASSERT(si_get_alive_count() == 0, "all invaders dead after kill_all");
-    /* The alive-count reaching 0 only triggers level win via check_bullet_hit.
-       Use the bullet mechanism: revive [0][0], place bullet above it. */
-    si_init();  /* reset */
+
+    // Level win only triggers from the bullet-hit path.
+    si_init();
     for (int r = 0; r < INV_ROWS; r++)
         for (int c = 0; c < INV_COLS; c++)
             if (!(r == 0 && c == 0))
                 si_kill_invader(r, c);
 
-    /* Last invader [0][0] at (0, 1). Bullet at (0, 2), one tick → hit. */
     si_set_bullet(0, 2);
     STEP(60);
 
     ASSERT(si_in_end_state(), "end state triggered when last invader killed");
     ASSERT(si_get_level() == 1, "level still 1 during transition animation");
 
-    /* After LEVEL_DELAY_MS, level advances and invaders reset. */
     STEP(60 + 1200);
     ASSERT(si_get_level() == 2, "level advances to 2 after delay");
     ASSERT(si_get_alive_count() == INV_ROWS * INV_COLS, "invaders reset for new level");
@@ -230,23 +208,19 @@ static void test_game_win_after_max_level(void) {
     display_init();
     si_init();
 
-    /* Advance to the last level by winning all previous ones. */
-    /* Fast-forward: set level=4 directly via repeated level wins. */
+    // Reach level 4 by winning levels 1 through 3.
     for (int lv = 1; lv < 4; lv++) {
-        /* Kill all but one invader, then bullet-kill the last. */
         for (int r = 0; r < INV_ROWS; r++)
             for (int c = 0; c < INV_COLS; c++)
                 if (!(r == 0 && c == 0))
                     si_kill_invader(r, c);
         si_set_bullet(0, 2);
         STEP((unsigned long)(lv * 100000 + 60));
-        /* Wait for level transition. */
         STEP((unsigned long)(lv * 100000 + 60 + 1200));
     }
 
     ASSERT(si_get_level() == 4, "reached level 4");
 
-    /* Kill all invaders at level 4. */
     for (int r = 0; r < INV_ROWS; r++)
         for (int c = 0; c < INV_COLS; c++)
             if (!(r == 0 && c == 0))
@@ -265,11 +239,10 @@ static void test_invader_bullet_hits_player(void) {
     display_init();
     si_init();
 
-    /* Place invader bullet one row above player, aligned with player. */
     int px = si_get_player_x();
     si_set_inv_bullet(px, PLAYER_ROW - 1);
 
-    STEP(160);  /* one INV_BULLET_MS — bullet moves to PLAYER_ROW */
+    STEP(160);
     ASSERT(si_in_end_state(), "game over when invader bullet hits player");
 }
 
@@ -278,7 +251,6 @@ static void test_invader_bullet_misses(void) {
     display_init();
     si_init();
 
-    /* Place bullet far from player (player is at x=0, bullet at x=9). */
     si_set_inv_bullet(9, PLAYER_ROW - 1);
     STEP(160);
     ASSERT(!si_in_end_state(), "no game over when invader bullet misses player");
@@ -293,7 +265,7 @@ static void test_is_over_timing(void) {
 
     int px = si_get_player_x();
     si_set_inv_bullet(px, PLAYER_ROW - 1);
-    STEP(160);  /* game over triggered */
+    STEP(160);
 
     ASSERT(!si_is_over(), "is_over false immediately after game over");
     STEP(160 + 1499);
@@ -321,14 +293,13 @@ static void test_player_stays_still_when_frozen(void) {
     display_init();
     si_init();
 
-    si_on_input(INPUT_DOUBLE_TAP);  /* freeze */
+    si_on_input(INPUT_DOUBLE_TAP);
     int x0 = si_get_player_x();
 
-    /* Advance well past PLAYER_SPEED_MS — player must not move. */
     STEP(1000);
     ASSERT(si_get_player_x() == x0, "frozen player does not move");
 
-    si_on_input(INPUT_DOUBLE_TAP);  /* unfreeze */
+    si_on_input(INPUT_DOUBLE_TAP);
     STEP(1200);
     ASSERT(si_get_player_x() != x0, "unfrozen player resumes moving");
 }
@@ -338,17 +309,16 @@ static void test_freeze_resets_on_level_change(void) {
     display_init();
     si_init();
 
-    si_on_input(INPUT_DOUBLE_TAP);  /* freeze during level 1 */
+    si_on_input(INPUT_DOUBLE_TAP);
     ASSERT(si_get_player_frozen(), "frozen before level transition");
 
-    /* Kill last invader to trigger level win, wait for transition. */
     for (int r = 0; r < INV_ROWS; r++)
         for (int c = 0; c < INV_COLS; c++)
             if (!(r == 0 && c == 0))
                 si_kill_invader(r, c);
     si_set_bullet(0, 2);
-    STEP(60);          /* bullet hits last invader → level win */
-    STEP(60 + 1200);   /* transition delay expires → level 2 starts */
+    STEP(60);
+    STEP(60 + 1200);
 
     ASSERT(!si_get_player_frozen(), "freeze cleared when new level starts");
 }
@@ -358,25 +328,19 @@ static void test_drawing(void) {
     display_init();
     si_init();
 
-    /* Player (white) should be at (player_x, PLAYER_ROW). */
     uint8_t r, g, b;
     display_get((uint8_t)si_get_player_x(), PLAYER_ROW, &r, &g, &b);
     ASSERT(r == 255 && g == 255 && b == 255, "player drawn white");
 
-    /* Top-left invader (magenta, row 0, col 0) at (0, 1). */
     display_get(0, 1, &r, &g, &b);
     ASSERT(r == 200 && g == 0 && b == 200, "top invader drawn magenta");
 
-    /* Middle row invader (cyan, row 1, col 0) at (0, 3). */
     display_get(0, 3, &r, &g, &b);
     ASSERT(r == 0 && g == 200 && b == 200, "middle invader drawn cyan");
 
-    /* Bottom row invader (yellow, row 2, col 0) at (0, 5). */
     display_get(0, 5, &r, &g, &b);
     ASSERT(r == 200 && g == 200 && b == 0, "bottom invader drawn yellow");
 }
-
-/* ------------------------------------------------------------------ */
 
 int main(void) {
     puts("=== space invaders tests ===");

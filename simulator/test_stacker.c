@@ -15,17 +15,15 @@ static int tests_failed = 0;
     tests_run++;                                                 \
     if (cond) {                                                  \
         tests_passed++;                                          \
-        printf("  PASS  %s\n", msg);                            \
+        printf("  PASS  %s\n", msg);                             \
     } else {                                                     \
         tests_failed++;                                          \
-        printf("  FAIL  %s  (line %d)\n", msg, __LINE__);       \
+        printf("  FAIL  %s  (line %d)\n", msg, __LINE__);        \
     }                                                            \
 } while (0)
 
 #define TAP()     stacker_on_input(INPUT_TAP)
 #define STEP(t)   stacker_update((unsigned long)(t))
-
-/* ------------------------------------------------------------------ */
 
 static void test_init_state(void) {
     puts("init_state");
@@ -38,7 +36,6 @@ static void test_init_state(void) {
     ASSERT(!stacker_is_over(),                        "game not over at start");
     ASSERT(!stacker_won(),                            "not won at start");
 
-    /* No cells locked yet. */
     int any_locked = 0;
     for (int y = 0; y < DISPLAY_H && !any_locked; y++)
         for (int x = 0; x < DISPLAY_W && !any_locked; x++)
@@ -52,7 +49,7 @@ static void test_block_moves(void) {
     stacker_init();
 
     int x0 = stacker_get_block_x();
-    STEP(500);   /* one full speed_ms interval */
+    STEP(500);
     ASSERT(stacker_get_block_x() != x0 || stacker_get_block_width() == DISPLAY_W,
            "block moves after speed_ms");
 }
@@ -62,15 +59,13 @@ static void test_bounce_right(void) {
     display_init();
     stacker_init();
 
-    /* Drive block to the right wall. */
     int steps = 0;
     for (int t = 500; steps < 20; t += 500, steps++) {
         STEP(t);
         if (stacker_get_block_x() == DISPLAY_W - stacker_get_block_width()) break;
     }
     int x_at_wall = stacker_get_block_x();
-    /* With immediate reflection, one step is enough: the block overshoots by 1,
-       reflects back by 1, and arrives left of the wall in the same frame. */
+    // Reflection happens in the same frame as the wall hit.
     unsigned long base = (unsigned long)500 * (steps + 1);
     STEP(base + 500);
     ASSERT(stacker_get_block_x() < x_at_wall, "block reverses at right wall");
@@ -81,9 +76,7 @@ static void test_bounce_left(void) {
     display_init();
     stacker_init();
 
-    /* Drive past the right wall so it bounces and heads back left, then hits left. */
     for (int i = 1; i <= 30; i++) STEP(500 * i);
-    /* Eventually it must reach x=0. */
     ASSERT(stacker_get_block_x() >= 0, "block stays in bounds on left");
 }
 
@@ -92,7 +85,6 @@ static void test_first_tap_locks_all(void) {
     display_init();
     stacker_init();
 
-    /* Block starts at x=0, width=3. */
     TAP();
     int bottom = DISPLAY_H - 1;
     ASSERT(stacker_is_cell_locked(0, bottom), "col 0 locked on first tap");
@@ -107,12 +99,10 @@ static void test_overlap_full(void) {
     display_init();
     stacker_init();
 
-    /* Lock bottom row at x=0..2. */
     TAP();
     int w_before = stacker_get_block_width();
     int x_before = stacker_get_block_x();
 
-    /* Block on next row starts at the same x as the locked range → full overlap. */
     ASSERT(stacker_get_block_x()   == x_before, "block repositioned over locked cells");
     ASSERT(stacker_get_block_width() == w_before, "width unchanged after full overlap");
 }
@@ -122,11 +112,9 @@ static void test_overlap_partial(void) {
     display_init();
     stacker_init();
 
-    /* Lock bottom row (block at 0, width 3 → cols 0,1,2). */
     TAP();
 
-    /* Move the block on the next row one step right → covers 1,2,3.
-       Overlap with locked[bottom] (0,1,2) is cols 1,2 → new width 2. */
+    // Shift right so only columns 1 and 2 overlap.
     stacker_set_block_x(1);
     TAP();
 
@@ -142,19 +130,15 @@ static void test_overlap_none_loses(void) {
     display_init();
     stacker_init();
 
-    /* Lock bottom row (cols 0,1,2). */
     TAP();
 
-    /* Move block completely past the locked zone: block at x=7 → covers 7,8,9.
-       No overlap with locked cols 0,1,2. */
+    // Move completely past the locked zone.
     stacker_set_block_x(7);
     TAP();
 
     ASSERT(!stacker_won(),   "no win on zero overlap");
-    /* Game should be in end state but not yet over (still in END_DELAY_MS). */
     ASSERT(!stacker_is_over(), "is_over() false immediately after lose");
 
-    /* Advance time past full end sequence (fall + score display). */
     STEP(2800);
     ASSERT(stacker_is_over(), "is_over() true after end animation on lose");
 }
@@ -165,10 +149,9 @@ static void test_speed_increases(void) {
     stacker_init();
 
     unsigned long s0 = stacker_get_speed_ms();
-    TAP();  /* first lock */
+    TAP();
     unsigned long s1 = stacker_get_speed_ms();
-    stacker_set_block_x(stacker_get_block_x());  /* keep same position */
-    TAP();  /* second lock */
+    TAP();
     unsigned long s2 = stacker_get_speed_ms();
 
     ASSERT(s1 < s0, "speed_ms decreases after first lock");
@@ -180,12 +163,11 @@ static void test_win(void) {
     display_init();
     stacker_init();
 
-    /* Stack from bottom (row 24) to top (row 0): lock each row with full overlap.
-       Block always starts at the same x as the previous locked range, so we just tap. */
+    // Tap once per row, keeping full overlap each time.
     for (int row = DISPLAY_H - 1; row >= 0; row--) {
         int cur = stacker_get_stack_row();
         ASSERT(cur == row, "stack_row correct before each tap");
-        if (cur != row) break;  /* stop early to avoid runaway */
+        if (cur != row) break;
         TAP();
     }
 
@@ -201,13 +183,12 @@ static void test_ignore_input_after_game_over(void) {
     display_init();
     stacker_init();
 
-    /* Lose immediately. */
-    TAP();                   /* lock bottom row at x=0 */
-    stacker_set_block_x(7); /* move block away */
-    TAP();                   /* miss → end state */
+    TAP();
+    stacker_set_block_x(7);
+    TAP();
 
     int row_at_end = stacker_get_stack_row();
-    TAP();  /* should be ignored */
+    TAP();
     ASSERT(stacker_get_stack_row() == row_at_end,
            "extra tap after lose does not change state");
 }
@@ -217,7 +198,7 @@ static void test_drawing_locked_cells(void) {
     display_init();
     stacker_init();
 
-    TAP();  /* lock cols 0,1,2 at bottom row */
+    TAP();
 
     int bottom = DISPLAY_H - 1;
     uint8_t r, g, b;
@@ -235,7 +216,6 @@ static void test_drawing_moving_block(void) {
     display_init();
     stacker_init();
 
-    /* Block at x=0, width=3 → cols 0,1,2 on bottom row. */
     uint8_t r, g, b;
     display_get(0, DISPLAY_H - 1, &r, &g, &b);
     ASSERT(r == 255 && g == 255 && b == 255,
@@ -245,8 +225,6 @@ static void test_drawing_moving_block(void) {
     ASSERT(r == 0 && g == 0 && b == 0,
            "position outside block is black");
 }
-
-/* ------------------------------------------------------------------ */
 
 int main(void) {
     puts("=== stacker tests ===");

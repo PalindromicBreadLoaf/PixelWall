@@ -1,13 +1,4 @@
-/*
- * Tests for the shared application loop (app.c): game rotation and the
- * idle-screensaver behaviour that used to live (duplicated) inside the two
- * entry points.  The screensaver timer must start at boot, so the curtain
- * drops after the timeout even when no button is ever pressed.
- *
- * The display is backed by display_buf.c; input is faked through the
- * input_last_event_ms() stub below, so app_step() can be driven frame by
- * frame at controlled timestamps without SDL.
- */
+// Tests for the shared app loop using a fake input clock.
 #include <stdio.h>
 #include <stdint.h>
 #include "../display.h"
@@ -17,8 +8,7 @@
 void display_init(void) { display_buf_init(); }
 void display_show(void) {}
 
-/* Stand-in for the input backend's "time of last non-NONE event".  Tests set
-   this to the timestamp of any event they inject, mirroring the real backend. */
+// Fake timestamp returned by input_last_event_ms().
 static unsigned long fake_last_event = 0;
 unsigned long input_last_event_ms(void) { return fake_last_event; }
 
@@ -30,15 +20,14 @@ static int tests_failed = 0;
     tests_run++;                                                 \
     if (cond) {                                                  \
         tests_passed++;                                          \
-        printf("  PASS  %s\n", msg);                            \
+        printf("  PASS  %s\n", msg);                             \
     } else {                                                     \
         tests_failed++;                                          \
-        printf("  FAIL  %s  (line %d)\n", msg, __LINE__);       \
+        printf("  FAIL  %s  (line %d)\n", msg, __LINE__);        \
     }                                                            \
 } while (0)
 
-/* Run frames from `from` to `to` (inclusive) in `step`-ms increments, with no
-   input, and return the timestamp of the final frame. */
+// Run idle frames and return the last timestamp used.
 static unsigned long idle_until(unsigned long from, unsigned long to, unsigned long step) {
     unsigned long t = from;
     for (; t <= to; t += step)
@@ -46,11 +35,9 @@ static unsigned long idle_until(unsigned long from, unsigned long to, unsigned l
     return t - step;
 }
 
-/* The regression that motivated extracting app.c: with no input ever, the
-   screensaver still has to start after the timeout. */
 static void test_screensaver_without_input(void) {
     puts("screensaver_without_input");
-    fake_last_event = 0;            /* button never pressed */
+    fake_last_event = 0;
     app_init(0);
 
     idle_until(0, 29000, 100);
@@ -66,29 +53,24 @@ static void test_screensaver_without_input(void) {
     ASSERT(!app_in_transition(), "curtain finished");
 }
 
-/* Input pushes the idle deadline out: the timer counts from the last event,
-   not from boot. */
 static void test_input_resets_timeout(void) {
     puts("input_resets_timeout");
     fake_last_event = 0;
     app_init(0);
 
     idle_until(0, 20000, 100);
-    fake_last_event = 20000;        /* a tap, as the backend would record it */
+    fake_last_event = 20000;
     app_step(INPUT_TAP, 20000);
 
-    /* 30 s after boot but only ~10 s after the tap — no screensaver yet. */
     idle_until(20100, 30100, 100);
     ASSERT(!app_in_screensaver() && !app_in_transition(),
            "tap resets the idle timer");
 
-    /* 30 s after the tap — now it may start. */
     idle_until(30200, 50300, 50);
     ASSERT(app_in_screensaver() || app_in_transition(),
            "screensaver starts 30 s after the last input");
 }
 
-/* While the screensaver runs, any input rolls the curtain back to the game. */
 static void test_screensaver_wakes_on_input(void) {
     puts("screensaver_wakes_on_input");
     fake_last_event = 0;
@@ -106,7 +88,6 @@ static void test_screensaver_wakes_on_input(void) {
            "screensaver dismissed after the curtain");
 }
 
-/* INPUT_HOLD wipes across to the next game in the rotation. */
 static void test_hold_cycles_game(void) {
     puts("hold_cycles_game");
     fake_last_event = 0;
@@ -115,8 +96,8 @@ static void test_hold_cycles_game(void) {
     ASSERT(app_current_game() == 0, "starts on the first game");
 
     fake_last_event = 100;
-    app_step(INPUT_HOLD, 100);      /* begin the wipe */
-    idle_until(120, 1200, 20);      /* wipe-in + wipe-out ≈ 600 ms */
+    app_step(INPUT_HOLD, 100);
+    idle_until(120, 1200, 20);
     ASSERT(app_current_game() == 1, "hold cycled to the next game");
 }
 

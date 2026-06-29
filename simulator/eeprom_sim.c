@@ -1,7 +1,7 @@
 #include "../eeprom.h"
 #include <string.h>
 
-/* In-memory backing store; initialized to 0xFF to match blank-EEPROM state. */
+// 0xFF matches blank Arduino EEPROM.
 static uint8_t buf[16];
 static int     inited = 0;
 

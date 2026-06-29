@@ -4,14 +4,12 @@
 #define PIXEL_SIZE 20
 #define PIXEL_GAP   3
 #define PANEL_GAP  10
-#define PANEL_SIZE  5  /* LEDs per panel side */
+#define PANEL_SIZE  5
 
 static SDL_Window   *window   = NULL;
 static SDL_Renderer *renderer = NULL;
 
-/* Maps a logical pixel coordinate to a screen coordinate in pixels.
-   Every PANEL_SIZE logical pixels, a wider gap replaces the normal PIXEL_GAP
-   to represent the physical border between panels. */
+// Add wider gaps between where physical panels would be.
 static int to_screen(int logical) {
     return logical * (PIXEL_SIZE + PIXEL_GAP)
          + (logical / PANEL_SIZE) * (PANEL_GAP - PIXEL_GAP);

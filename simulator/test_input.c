@@ -11,10 +11,10 @@ static int tests_failed = 0;
     tests_run++;                                                  \
     if (cond) {                                                   \
         tests_passed++;                                           \
-        printf("  PASS  %s\n", msg);                             \
+        printf("  PASS  %s\n", msg);                              \
     } else {                                                      \
         tests_failed++;                                           \
-        printf("  FAIL  %s  (line %d)\n", msg, __LINE__);        \
+        printf("  FAIL  %s  (line %d)\n", msg, __LINE__);         \
     }                                                             \
 } while (0)
 
@@ -43,18 +43,14 @@ static void push_quit(void) {
     SDL_PushEvent(&e);
 }
 
-/* ------------------------------------------------------------------ */
-
 static void test_tap_on_quick_press(void) {
     puts("tap_on_quick_press");
 
-    /* Space down then up in the same poll → duration ≈ 0 < TAP_MAX_MS → TAP */
     input_init();
     push_keydown(SDLK_SPACE);
     push_keyup(SDLK_SPACE);
-    ASSERT(input_poll() == INPUT_TAP, "space down+up → INPUT_TAP");
+    ASSERT(input_poll() == INPUT_TAP, "space down+up = INPUT_TAP");
 
-    /* Key repeat events must be ignored. */
     input_init();
     SDL_Event repeat;
     SDL_memset(&repeat, 0, sizeof(repeat));
@@ -70,31 +66,26 @@ static void test_double_tap(void) {
 
     input_init();
 
-    /* Push all four events at once so they share the same timestamp range.
-       First poll takes down1+up1 and breaks (result=TAP); down2+up2 stay queued.
-       Second poll finds btn_state=ST_AFTER_TAP, processes down2+up2 → DOUBLE_TAP.
-       This avoids any wall-clock race with the double-tap window expiry. */
+    // Queue both taps so timing cannot race the double-tap window.
     push_keydown(SDLK_SPACE);
     push_keyup(SDLK_SPACE);
     push_keydown(SDLK_SPACE);
     push_keyup(SDLK_SPACE);
 
-    ASSERT(input_poll() == INPUT_TAP,        "first poll → INPUT_TAP");
-    ASSERT(input_poll() == INPUT_DOUBLE_TAP, "second poll → INPUT_DOUBLE_TAP");
+    ASSERT(input_poll() == INPUT_TAP,        "first poll = INPUT_TAP");
+    ASSERT(input_poll() == INPUT_DOUBLE_TAP, "second poll = INPUT_DOUBLE_TAP");
 }
 
 static void test_hold_via_space(void) {
     puts("hold_via_space");
 
-    /* Use a short threshold so the test doesn't wait 2 seconds. */
     input_init();
     input_sim_set_hold_min_ms(50);
 
     push_keydown(SDLK_SPACE);
-    SDL_Delay(80);             /* wait longer than 50 ms */
-    ASSERT(input_poll() == INPUT_HOLD, "space held >= hold_min_ms → INPUT_HOLD");
+    SDL_Delay(80);
+    ASSERT(input_poll() == INPUT_HOLD, "space held >= hold_min_ms = INPUT_HOLD");
 
-    /* Release the key to clean up state. */
     push_keyup(SDLK_SPACE);
     input_poll();
 }
@@ -102,15 +93,13 @@ static void test_hold_via_space(void) {
 static void test_hold_shortcuts(void) {
     puts("hold_shortcuts");
 
-    /* H key → instant HOLD (no press duration required). */
     input_init();
     push_keydown(SDLK_h);
-    ASSERT(input_poll() == INPUT_HOLD, "H key → instant INPUT_HOLD");
+    ASSERT(input_poll() == INPUT_HOLD, "H key = instant INPUT_HOLD");
 
-    /* D key → instant DOUBLE_TAP. */
     input_init();
     push_keydown(SDLK_d);
-    ASSERT(input_poll() == INPUT_DOUBLE_TAP, "D key → instant INPUT_DOUBLE_TAP");
+    ASSERT(input_poll() == INPUT_DOUBLE_TAP, "D key = instant INPUT_DOUBLE_TAP");
 }
 
 static void test_unknown_keys_ignored(void) {
@@ -126,12 +115,11 @@ static void test_unknown_keys_ignored(void) {
 static void test_sloppy_press_ignored(void) {
     puts("sloppy_press_ignored");
 
-    /* Press duration between TAP_MAX_MS and hold_min_ms → nothing emitted. */
     input_init();
     input_sim_set_hold_min_ms(500);
 
     push_keydown(SDLK_SPACE);
-    SDL_Delay(350);            /* > TAP_MAX_MS(300), < hold_min_ms(500) */
+    SDL_Delay(350);
     push_keyup(SDLK_SPACE);
     ASSERT(input_poll() == INPUT_NONE, "sloppy press emits INPUT_NONE");
 }
@@ -142,7 +130,7 @@ static void test_last_event_ms(void) {
     input_init();
     ASSERT(input_last_event_ms() == 0, "last_event_ms is 0 after init");
 
-    SDL_Delay(2);  /* ensure SDL_GetTicks() > 0 */
+    SDL_Delay(2);
 
     push_keydown(SDLK_SPACE);
     push_keyup(SDLK_SPACE);
@@ -150,7 +138,7 @@ static void test_last_event_ms(void) {
     unsigned long after_tap = input_last_event_ms();
     ASSERT(after_tap > 0, "last_event_ms > 0 after TAP");
 
-    input_poll();  /* nothing queued */
+    input_poll();
     ASSERT(input_last_event_ms() == after_tap,
            "last_event_ms unchanged when INPUT_NONE returned");
 
@@ -187,13 +175,11 @@ static void test_one_event_per_frame(void) {
     puts("one_event_per_frame");
 
     input_init();
-    push_keydown(SDLK_h);   /* HOLD */
-    push_keydown(SDLK_d);   /* DOUBLE_TAP */
+    push_keydown(SDLK_h);
+    push_keydown(SDLK_d);
     ASSERT(input_poll() == INPUT_HOLD,       "first queued event returned");
     ASSERT(input_poll() == INPUT_DOUBLE_TAP, "second event returned next poll");
 }
-
-/* ------------------------------------------------------------------ */
 
 int main(void) {
     SDL_Init(SDL_INIT_EVENTS);

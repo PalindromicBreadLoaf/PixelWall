@@ -3,7 +3,7 @@
 #include "../display.h"
 #include "display_buf.h"
 
-/* Stubs: tests exercise the framebuffer only, no SDL2 window needed. */
+// Tests use the raw framebuffer instead of SDL.
 void display_init(void) { display_buf_init(); }
 void display_show(void) {}
 
@@ -15,14 +15,12 @@ static int tests_failed = 0;
     tests_run++;                                                    \
     if (cond) {                                                     \
         tests_passed++;                                             \
-        printf("  PASS  %s\n", msg);                               \
+        printf("  PASS  %s\n", msg);                                \
     } else {                                                        \
         tests_failed++;                                             \
-        printf("  FAIL  %s  (line %d)\n", msg, __LINE__);          \
+        printf("  FAIL  %s  (line %d)\n", msg, __LINE__);           \
     }                                                               \
 } while (0)
-
-/* ------------------------------------------------------------------ */
 
 static void test_set_and_get(void) {
     puts("set_and_get");
@@ -71,13 +69,11 @@ static void test_out_of_bounds(void) {
     puts("out_of_bounds");
     display_init();
 
-    /* These must not crash. */
     display_set(DISPLAY_W,     0,          255, 0, 0);
     display_set(0,             DISPLAY_H,  0, 255, 0);
     display_set(255,           255,        0, 0, 255);
     ASSERT(1, "out-of-bounds writes do not crash");
 
-    /* Out-of-bounds reads must return (0,0,0) and not crash. */
     uint8_t r = 99, g = 99, b = 99;
     display_get(DISPLAY_W, 0, &r, &g, &b);
     ASSERT(r == 0 && g == 0 && b == 0, "out-of-bounds get x=DISPLAY_W returns zero");
@@ -91,7 +87,7 @@ static void test_init_clears(void) {
     puts("init_clears");
 
     display_set(3, 3, 100, 100, 100);
-    display_init();  /* reinit must zero the buffer */
+    display_init();
 
     uint8_t r, g, b;
     display_get(3, 3, &r, &g, &b);
@@ -102,13 +98,11 @@ static void test_all_pixels_independent(void) {
     puts("all_pixels_independent");
     display_init();
 
-    /* Write a unique value to every pixel. */
     for (int y = 0; y < DISPLAY_H; y++)
         for (int x = 0; x < DISPLAY_W; x++)
             display_set((uint8_t)x, (uint8_t)y,
                         (uint8_t)x, (uint8_t)y, (uint8_t)(x + y));
 
-    /* Read back and verify every pixel. */
     int ok = 1;
     uint8_t r, g, b;
     for (int y = 0; y < DISPLAY_H && ok; y++)
@@ -119,8 +113,6 @@ static void test_all_pixels_independent(void) {
         }
     ASSERT(ok, "every pixel holds its own value independently");
 }
-
-/* ------------------------------------------------------------------ */
 
 int main(void) {
     puts("=== display tests ===");
