@@ -1,8 +1,4 @@
-/*
- * Shared application loop for the pixel wall.  Both PixelWall.ino (Arduino)
- * and simulator/main.c are thin shells over app_init() / app_step() — see
- * app.h.  Plain C, no Arduino headers.
- */
+// Shared app loop for the Arduino sketch and simulator.
 #include "app.h"
 #include "display.h"
 #include "game.h"
@@ -11,8 +7,8 @@
 #include "space_invaders.h"
 
 #define SCREENSAVER_TIMEOUT_MS 30000UL
-#define WIPE_STEP_MS              30UL  /* ms per column — 10 columns = 300 ms total */
-#define CURTAIN_STEP_MS           20UL  /* ms per row — 25 rows = 500 ms per phase */
+#define WIPE_STEP_MS              30UL  // one column per step
+#define CURTAIN_STEP_MS           20UL  // one row per step
 
 static const Game *games[] = {
     &stacker_game,
@@ -28,18 +24,17 @@ static int wipe_next      = 0;
 static int wipe_col       = 0;
 static unsigned long last_wipe_ms = 0;
 
-/* Screensaver curtain: a white-row transition into/out of Conway. */
-static int ss_trans = 0;   /* curtain active */
-static int ss_enter = 0;   /* 1 = into screensaver, 0 = back to game */
-static int ss_phase = 0;   /* 0 = fill, 1 = reveal */
+// Screensaver curtain state.
+static int ss_trans = 0;   // 1 = curtain currently active
+static int ss_enter = 0;   // 1 = into screensaver, 0 = back to game
+static int ss_phase = 0;   // 0 = fill, 1 = reveal
 static int ss_row   = 0;
 static unsigned long last_ss_ms = 0;
-/* Snapshot of the scene being revealed, so the curtain rolls over a stable
-   image instead of the scene's sparse per-tick redraws. */
+// Snapshot used while the curtain reveals a stable image.
+// Without this the game looked really funky while being shown.
 static uint8_t scene_buf[DISPLAY_H][DISPLAY_W][3];
 
-/* Boot time doubles as the first "activity" timestamp so the screensaver can
-   fire after the idle timeout even if the user never presses the button. */
+// Used as the idle baseline when no button has been pressed yet.
 static unsigned long start_ms = 0;
 
 void app_init(unsigned long now_ms) {
@@ -63,9 +58,9 @@ void app_init(unsigned long now_ms) {
 void app_step(InputEvent ev, unsigned long now) {
     if (ev != INPUT_NONE) {
         if (ss_trans) {
-            /* ignore input while the screensaver curtain is animating */
+            // Ignore input while the curtain is moving.
         } else if (in_screensaver) {
-            /* roll the curtain back to reveal the current game */
+            // Start the curtain back to the current game.
             ss_trans   = 1;
             ss_enter   = 0;
             ss_phase   = 0;
@@ -82,12 +77,12 @@ void app_step(InputEvent ev, unsigned long now) {
         }
     }
 
-    /* Idle since the last input — or since boot, if there's been none yet. */
+    // Use boot time when there has not been any input yet.
     unsigned long last_active = input_last_event_ms();
     if (last_active == 0) last_active = start_ms;
     if (!in_screensaver && !ss_trans && !in_wipe
             && now - last_active > SCREENSAVER_TIMEOUT_MS) {
-        /* drop the curtain on the way into the screensaver */
+        // Start the curtain into the screensaver.
         ss_trans   = 1;
         ss_enter   = 1;
         ss_phase   = 0;
@@ -97,8 +92,7 @@ void app_step(InputEvent ev, unsigned long now) {
 
     if (ss_trans) {
         if (ss_phase == 0) {
-            /* FILL: paint one white row per step.  Enter fills bottom→top,
-               exit fills top→bottom.  The frozen scene shows underneath. */
+            // Fill with white before swapping scenes.
             if (now - last_ss_ms >= CURTAIN_STEP_MS) {
                 last_ss_ms = now;
                 int row = ss_enter ? (DISPLAY_H - 1 - ss_row) : ss_row;
@@ -106,9 +100,7 @@ void app_step(InputEvent ev, unsigned long now) {
                     display_set((uint8_t)x, (uint8_t)row, 255, 255, 255);
                 ss_row++;
                 if (ss_row >= DISPLAY_H) {
-                    /* Screen is fully white.  Build the scene to reveal and
-                       snapshot it, then repaint white so init()'s draw
-                       doesn't flash before the reveal begins. */
+                    // Capture the next scene while the screen is hidden.
                     if (ss_enter) conway_init();
                     else          games[current_game]->init();
                     for (int y = 0; y < DISPLAY_H; y++)
@@ -126,9 +118,7 @@ void app_step(InputEvent ev, unsigned long now) {
                 }
             }
         } else {
-            /* REVEAL: restore the snapshot, then cover the still-hidden rows
-               with white.  Enter rolls white down from the top, exit rolls it
-               back up from the bottom. */
+            // Reveal the saved scene row by row.
             for (int y = 0; y < DISPLAY_H; y++)
                 for (int x = 0; x < DISPLAY_W; x++)
                     display_set((uint8_t)x, (uint8_t)y,
@@ -153,7 +143,7 @@ void app_step(InputEvent ev, unsigned long now) {
         }
     } else if (in_wipe) {
         if (!wipe_out) {
-            /* WIPE_IN: paint one white column per step, left → right. */
+            // Hide the old game with a white column wipe.
             if (now - last_wipe_ms >= WIPE_STEP_MS) {
                 last_wipe_ms = now;
                 for (int y = 0; y < DISPLAY_H; y++)
@@ -165,16 +155,13 @@ void app_step(InputEvent ev, unsigned long now) {
                     current_game = wipe_next;
                     games[current_game]->init();
                     last_wipe_ms = now;
-                    /* Repaint white so init()'s draw doesn't show this frame. */
                     for (int x = 0; x < DISPLAY_W; x++)
                         for (int y = 0; y < DISPLAY_H; y++)
                             display_set((uint8_t)x, (uint8_t)y, 255, 255, 255);
                 }
             }
         } else {
-            /* WIPE_OUT: run the new game each frame so revealed columns show a
-               live image, then re-paint white over the unrevealed right-side
-               columns on top. */
+            // Reveal the new game, keeping unrevealed columns white.
             games[current_game]->update(now);
             for (int col = wipe_col; col < DISPLAY_W; col++)
                 for (int y = 0; y < DISPLAY_H; y++)
@@ -196,8 +183,6 @@ void app_step(InputEvent ev, unsigned long now) {
 
     display_show();
 }
-
-/* ------------------------------------------------------------------ */
 
 int app_in_screensaver(void) { return in_screensaver; }
 int app_in_transition(void)  { return ss_trans;       }

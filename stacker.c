@@ -7,17 +7,16 @@
 #define COLS          DISPLAY_W
 #define ROWS          DISPLAY_H
 #define INITIAL_WIDTH  3
-#define INITIAL_SPEED  200UL   /* ms per block move at start */
-#define MIN_SPEED       50UL   /* fastest the block can move */
-#define SPEED_STEP       8UL   /* ms shaved off per locked row */
+#define INITIAL_SPEED  200UL   // ms per block move at start
+#define MIN_SPEED       50UL   // fastest the block can move
+#define SPEED_STEP       8UL   // speed-up after each locked row
 
-/* End sequence: ANIM_PHASE_MS of fall/confetti, then SCORE_PHASE_MS of score
-   display, then the game reports is_over. */
-#define ANIM_PHASE_MS   1000UL  /* fall animation / confetti duration */
-#define SCORE_PHASE_MS  1800UL  /* score count-up display duration */
+// End animation and score display timings.
+#define ANIM_PHASE_MS   1000UL  // fall animation / confetti duration
+#define SCORE_PHASE_MS  1800UL  // score count-up display duration
 #define END_DELAY_MS    (ANIM_PHASE_MS + SCORE_PHASE_MS)
 
-#define SCORE_STEP_MS     72UL  /* ms between successive score dots appearing */
+#define SCORE_STEP_MS     72UL  // ms between successive score dots appearing
 
 #define N_CONFETTI       14
 #define CONFETTI_STEP_MS 120UL
@@ -43,31 +42,27 @@ static int           fall_vel;
 static int           fall_done;
 static unsigned long last_fall_ms;
 
-/* Moving block color */
 #define BLK_R 255
 #define BLK_G 255
 #define BLK_B 255
 
-/* Locked row color */
 #define LCK_R  30
 #define LCK_G 100
 #define LCK_B 255
 
 static uint8_t  locked[ROWS][COLS];
-static int      stack_row;       /* row currently being filled */
-static int      block_x;         /* left edge of moving block */
+static int      stack_row;       // row being filled
+static int      block_x;         // moving block's left edge
 static int      block_width;
-static int      direction;       /* +1 right, -1 left */
+static int      direction;       // +1 right, -1 left
 static unsigned long speed_ms;
 static unsigned long last_move_ms;
-static int           in_end_state; /* 1 once the game has ended */
+static int           in_end_state;
 static unsigned long end_time_ms;
 static unsigned long current_ms;
-static int      locks_done;      /* rows locked so far (drives speed) */
+static int      locks_done;      // rows locked so far (drives speed increases)
 static int      game_won;
-static int      prev_high_score; /* best before this round — the line to beat */
-
-/* ------------------------------------------------------------------ */
+static int      prev_high_score; // best score before this round
 
 static void draw(void) {
     display_clear();
@@ -100,8 +95,7 @@ static void draw_score(void) {
     if (dots > locks_done) dots = locks_done;
     display_clear();
 
-    /* Dim reference line at the previous best height — the score to beat.
-       The gold count-up below is drawn on top so it shows through. */
+    // Show the previous best as a dim line behind the score.
     if (prev_high_score > 0 && prev_high_score <= ROWS) {
         int hy = ROWS - prev_high_score;
         for (int x = 0; x < COLS; x++)
@@ -115,14 +109,13 @@ static void draw_score(void) {
 static void draw_end_frame(void) {
     unsigned long elapsed = current_ms - end_time_ms;
 
-    /* Phase 2: score display (both win and lose). */
     if (elapsed >= ANIM_PHASE_MS) {
         draw_score();
         return;
     }
 
     if (!game_won) {
-        /* Phase 1 (lose): brief red freeze, then blocks fall. */
+        // Losing freezes red briefly, then the blocks fall.
         if (elapsed < FALL_PAUSE_MS) {
             display_clear();
             for (int y = 0; y < ROWS; y++)
@@ -152,7 +145,7 @@ static void draw_end_frame(void) {
         return;
     }
 
-    /* Phase 1 (win): twinkling confetti. */
+    // Winning shows confetti before the score.
     if (current_ms - last_confetti_ms >= CONFETTI_STEP_MS) {
         last_confetti_ms = current_ms;
         for (int i = 0; i < 3; i++) {
@@ -170,8 +163,6 @@ static void draw_end_frame(void) {
         display_set(confetti[i].x, confetti[i].y,
                     confetti[i].r, confetti[i].g, confetti[i].b);
 }
-
-/* ------------------------------------------------------------------ */
 
 void stacker_init(void) {
     memset(locked, 0, sizeof(locked));
@@ -220,8 +211,7 @@ void stacker_update(unsigned long now_ms) {
     draw();
 }
 
-/* Record prev_high_score for the end-of-round marker, then persist the new
-   score if it beat the stored best (0xFF = never written). */
+// Keep the old best for display, then save a new best if needed.
 static void save_high_score(void) {
     uint8_t hi = eeprom_read(EEPROM_ADDR_STACKER_BEST);
     prev_high_score = (hi == 0xFF) ? 0 : hi;
@@ -235,13 +225,13 @@ void stacker_on_input(InputEvent ev) {
     int any_locked = 0;
 
     if (stack_row == ROWS - 1) {
-        /* First row: no row below, lock whatever the block covers. */
+        // First row locks the whole block.
         for (int x = block_x; x < block_x + block_width; x++) {
             locked[stack_row][x] = 1;
             any_locked = 1;
         }
     } else {
-        /* Subsequent rows: only keep pixels that overlap the row below. */
+        // Later rows keep only the overlap with the row below.
         for (int x = block_x; x < block_x + block_width; x++) {
             if (locked[stack_row + 1][x]) {
                 locked[stack_row][x] = 1;
@@ -273,7 +263,7 @@ void stacker_on_input(InputEvent ev) {
         return;
     }
 
-    /* Find the extent of the newly locked pixels (always contiguous). */
+    // The next block starts over the surviving pixels.
     int lx_start = COLS, lx_end = -1;
     for (int x = 0; x < COLS; x++) {
         if (locked[stack_row][x]) {
@@ -284,7 +274,6 @@ void stacker_on_input(InputEvent ev) {
     block_width = lx_end - lx_start + 1;
     block_x     = lx_start;
 
-    /* Increase speed. */
     unsigned long new_speed = INITIAL_SPEED - (unsigned long)locks_done * SPEED_STEP;
     speed_ms = (new_speed > MIN_SPEED) ? new_speed : MIN_SPEED;
 
@@ -297,8 +286,6 @@ void stacker_on_input(InputEvent ev) {
 int stacker_is_over(void) {
     return in_end_state && (current_ms - end_time_ms >= END_DELAY_MS);
 }
-
-/* ------------------------------------------------------------------ */
 
 int stacker_get_stack_row(void)        { return stack_row;  }
 int stacker_get_block_x(void)          { return block_x;    }
@@ -314,8 +301,6 @@ int stacker_is_cell_locked(uint8_t x, uint8_t y) {
 void stacker_set_block_x(int x) {
     block_x = x;
 }
-
-/* ------------------------------------------------------------------ */
 
 const Game stacker_game = {
     "Stacker",

@@ -15,13 +15,13 @@ int  si_is_over(void);
 
 extern const Game si_game;
 
-/* Test and inspection helpers */
+// Test helpers.
 int  si_get_player_x(void);
 int  si_get_player_frozen(void);
 int  si_get_bullet_x(void);
-int  si_get_bullet_y(void);     /* -1 = no active bullet */
+int  si_get_bullet_y(void);
 int  si_get_inv_bullet_x(void);
-int  si_get_inv_bullet_y(void); /* -1 = no active bullet */
+int  si_get_inv_bullet_y(void);
 int  si_get_group_x(void);
 int  si_get_group_y(void);
 int  si_get_level(void);
@@ -38,4 +38,4 @@ void si_set_inv_bullet(int x, int y);
 }
 #endif
 
-#endif /* SPACE_INVADERS_H_ */
+#endif

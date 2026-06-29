@@ -4,9 +4,7 @@
 #include "app.h"
 
 void setup() {
-    /* Seed the C rand() used by Conway and Space Invaders.  A single
-       analogRead gives little entropy, so mix several reads of the floating
-       pin together with micros() for a more varied start each power-up. */
+    // Mix a floating analog pin into the random seed.
     unsigned long seed = micros();
     for (int i = 0; i < 16; i++)
         seed = seed * 31u + (unsigned long)analogRead(A0);

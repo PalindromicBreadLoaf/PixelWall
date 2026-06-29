@@ -19,4 +19,4 @@ typedef struct {
 }
 #endif
 
-#endif /* GAME_H_ */
+#endif

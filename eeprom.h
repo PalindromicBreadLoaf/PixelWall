@@ -7,21 +7,18 @@
 extern "C" {
 #endif
 
-/* Persistent-storage address map — one byte per game.  Keep these unique;
-   allocate a new address here rather than hard-coding a literal in a game. */
-#define EEPROM_ADDR_SI_LEVEL      0   /* Space Invaders: highest level reached */
-#define EEPROM_ADDR_STACKER_BEST  1   /* Stacker: best score (rows locked)     */
+// One byte per game. Keep addresses unique.
+#define EEPROM_ADDR_SI_LEVEL      0   // Space Invaders: highest level reached
+#define EEPROM_ADDR_STACKER_BEST  1   // Stacker: best score
 
-/* Read one byte from persistent storage. Returns 0xFF if the address has never
-   been written (matches the blank-EEPROM state on a fresh Arduino). */
+// Blank EEPROM reads as 0xFF.
 uint8_t eeprom_read(uint8_t addr);
 
-/* Write one byte to persistent storage.  Writes are skipped if the stored
-   value is already equal (Arduino EEPROM.update() semantics). */
+// Write new data once the game is over.
 void eeprom_write(uint8_t addr, uint8_t val);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* EEPROM_H_ */
+#endif

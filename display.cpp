@@ -1,24 +1,18 @@
-/*
- * Arduino display backend — implements display.h using FastLED.
- * The transform_pixel() function maps logical (x, y) coordinates to the
- * physical LED index for the specific panel wiring of this pixel wall.
- */
+// FastLED display backend.
 #include "display.h"
 #include <Arduino.h>
 #include <FastLED.h>
 
 #define DATA_PIN  7
-#define PANEL_W   5    /* pixels per panel side */
+#define PANEL_W   5
 #define PANEL_H   5
-#define PANELS_X  2    /* panels across */
-#define PANELS_Y  5    /* panels tall */
+#define PANELS_X  2
+#define PANELS_Y  5
 #define NUM_LEDS  (DISPLAY_W * DISPLAY_H)
 
 static CRGB leds[NUM_LEDS];
 
-/* Maps logical pixel (x, y) to the physical LED index for this wiring.
-   Matches the PixelWall.ino layout: each 5×5 panel is wired in a
-   serpentine pattern, panels arranged 2 wide × 5 tall. */
+// Convert logical (x, y) to the LED index.
 static short transform_pixel(int x, int y) {
     if (x < 0 || x >= DISPLAY_W || y < 0 || y >= DISPLAY_H) return -1;
 

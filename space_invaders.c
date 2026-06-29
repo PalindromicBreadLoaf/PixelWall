@@ -5,9 +5,9 @@
 
 #define INV_COLS        4
 #define INV_ROWS        3
-#define INV_X_SPACING   2   /* pixels between invader centres */
+#define INV_X_SPACING   2
 #define INV_Y_SPACING   2
-#define PLAYER_ROW      (DISPLAY_H - 1)   /* row 24 */
+#define PLAYER_ROW      (DISPLAY_H - 1)
 
 #define PLAYER_SPEED_MS  200UL
 #define BULLET_SPEED_MS   60UL
@@ -15,9 +15,8 @@
 #define END_DELAY_MS     1500UL
 #define LEVEL_DELAY_MS   1200UL
 
-/* Level indicator shown after each wave is cleared. */
 #define LEVEL_INTRO_MS      1500UL
-#define LEVEL_INTRO_STEP_MS  300UL   /* ms between successive dots appearing */
+#define LEVEL_INTRO_STEP_MS  300UL
 
 #define N_CONFETTI       12
 #define CONFETTI_STEP_MS 120UL
@@ -50,16 +49,14 @@ static unsigned long last_confetti_ms;
 
 #define MAX_BULLETS 3
 
-/* Per-level tuning (index = level-1). */
+// Per-level timing (indexed by level - 1).
 static const unsigned long INV_MOVE_MS[MAX_LEVELS] = {900, 650, 450, 300};
 static const unsigned long INV_FIRE_MS[MAX_LEVELS]  = {3000, 2400, 1800, 1300};
 
-/* Invader row colours: top=magenta, mid=cyan, bottom=yellow. */
+// Invader rows - top magenta, middle cyan, bottom yellow.
 static const uint8_t ROW_R[INV_ROWS] = {200,   0, 200};
 static const uint8_t ROW_G[INV_ROWS] = {  0, 200, 200};
 static const uint8_t ROW_B[INV_ROWS] = {200, 200,   0};
-
-/* ------------------------------------------------------------------ */
 
 static uint8_t      alive[INV_ROWS][INV_COLS];
 static int          group_x;
@@ -74,22 +71,21 @@ static unsigned long last_player_move;
 static struct {
     int x, y;
     unsigned long last_move;
-} bullets[MAX_BULLETS];  /* y == -1 means inactive */
+} bullets[MAX_BULLETS];  // y == -1 means inactive
 
-static int          inv_bul_x;      /* -1 = inactive */
+static int          inv_bul_x;
 static int          inv_bul_y;
 static unsigned long last_inv_bul_move;
 static unsigned long last_inv_fire;
 
-static int           player_frozen;  /* 1 = auto-oscillation paused */
+static int           player_frozen;
 static int           level;
-static int           best_level;   /* high level reached, shown on game over */
+static int           best_level;
 static int           end_type;
 static unsigned long end_time_ms;
 static unsigned long current_ms;
 
-/* level_intro_start_ms > 0 while the between-wave level indicator is shown.
-   The normal game loop is paused during this window. */
+// Non-zero while the level indicator is shown.
 static unsigned long level_intro_start_ms;
 
 #define EXPLOSION_FRAMES   4
@@ -97,8 +93,6 @@ static unsigned long level_intro_start_ms;
 
 static int           explosion_frame;
 static unsigned long last_explosion_ms;
-
-/* ------------------------------------------------------------------ */
 
 static int count_alive(void) {
     int n = 0;
@@ -182,17 +176,14 @@ static void trigger_end(int type) {
     last_explosion_ms = current_ms;
     if (type == END_GAME_WIN)   init_confetti_rainbow();
     if (type == END_LEVEL_WIN)  init_confetti_green();
-    /* The current level was already persisted by init_level() on entry, so the
-       stored value is the best level reached — capture it for the readout. */
+    // The stored level is the best level reached.
     if (type == END_GAME_OVER || type == END_GAME_WIN) {
         uint8_t hi = eeprom_read(EEPROM_ADDR_SI_LEVEL);
         best_level = (hi == 0xFF) ? 0 : hi;
     }
 }
 
-/* Dim readout of the best level reached: dots climb the bottom-left corner,
-   one per level.  Drawn on top of the terminal end visuals (game over / win),
-   clear of the centred explosion and the upper invader rows. */
+// Draw one dim dot per reached level.
 static void draw_best_level(void) {
     if (end_type != END_GAME_OVER && end_type != END_GAME_WIN) return;
     for (int i = 0; i < best_level && i < DISPLAY_H; i++)
@@ -221,14 +212,13 @@ static void draw(void) {
         display_set((uint8_t)inv_bul_x, (uint8_t)inv_bul_y, 255, 50, 0);
 }
 
-/* Show level-N indicator: dots grow upward from the screen centre, one per
-   LEVEL_INTRO_STEP_MS, until all N are visible. */
+// Show level N as N dots rising from the center.
 static void draw_level_intro(void) {
     display_clear();
     unsigned long elapsed = current_ms - level_intro_start_ms;
     int dots = (int)(elapsed / LEVEL_INTRO_STEP_MS) + 1;
     if (dots > level) dots = level;
-    int cy = DISPLAY_H / 2;  /* row 12 */
+    int cy = DISPLAY_H / 2;
     for (int i = 0; i < dots; i++)
         display_set(DISPLAY_W / 2, (uint8_t)(cy - i), 255, 200, 0);
 }
@@ -255,7 +245,7 @@ static void draw_end_frame(void) {
         draw_best_level();
         return;
     }
-    /* WIN states: twinkling confetti. */
+    // Win states show confetti.
     const uint8_t (*palette)[3] = (end_type == END_GAME_WIN) ? CONF_COLS : GREEN_COLS;
     int n_pal = (end_type == END_GAME_WIN) ? N_CONF_COLS : N_GREEN_COLS;
     if (current_ms - last_confetti_ms >= CONFETTI_STEP_MS) {
@@ -276,8 +266,6 @@ static void draw_end_frame(void) {
                     confetti[i].r, confetti[i].g, confetti[i].b);
     draw_best_level();
 }
-
-/* ------------------------------------------------------------------ */
 
 static void check_bullet_hit(int i) {
     for (int r = 0; r < INV_ROWS; r++) {
@@ -320,7 +308,7 @@ static void move_invaders(void) {
         group_y += 1;
     }
 
-    /* Find lowest alive row to check danger zone. */
+    // The lowest alive row decides whether invaders reached the player.
     int max_r = 0;
     for (int r = INV_ROWS - 1; r >= 0; r--) {
         for (int c = 0; c < INV_COLS; c++) {
@@ -333,7 +321,7 @@ static void move_invaders(void) {
 }
 
 static void fire_invader_bullet(void) {
-    /* Collect the bottom-most alive invader in each column. */
+    // Only bottom-most invaders can shoot for obvious reasons.
     int shooter_c[INV_COLS], shooter_r[INV_COLS], n = 0;
     for (int c = 0; c < INV_COLS; c++) {
         for (int r = INV_ROWS - 1; r >= 0; r--) {
@@ -353,7 +341,6 @@ static void fire_invader_bullet(void) {
     last_inv_bul_move = current_ms;
 }
 
-/* Called internally to reset invaders for the current level. */
 static void init_level(void) {
     for (int r = 0; r < INV_ROWS; r++)
         for (int c = 0; c < INV_COLS; c++)
@@ -377,15 +364,12 @@ static void init_level(void) {
     player_frozen     = 0;
     level_intro_start_ms = 0;
 
-    /* Persist the highest level reached. */
     uint8_t hi = eeprom_read(EEPROM_ADDR_SI_LEVEL);
     if (hi == 0xFF || level > hi)
         eeprom_write(EEPROM_ADDR_SI_LEVEL, (uint8_t)level);
 
     draw();
 }
-
-/* ------------------------------------------------------------------ */
 
 void si_init(void) {
     level       = 1;
@@ -406,21 +390,21 @@ void si_update(unsigned long now_ms) {
         if (end_type == END_LEVEL_WIN && now_ms - end_time_ms >= LEVEL_DELAY_MS) {
             level++;
             init_level();
-            level_intro_start_ms = now_ms;  /* show level indicator */
+            level_intro_start_ms = now_ms;
         }
         return;
     }
 
-    /* Show level indicator between waves. */
+    // Pause briefly between waves.
     if (level_intro_start_ms != 0) {
         if (now_ms - level_intro_start_ms < LEVEL_INTRO_MS) {
             draw_level_intro();
             return;
         }
-        level_intro_start_ms = 0;  /* intro complete */
+        level_intro_start_ms = 0;
     }
 
-    /* Move player (skipped while frozen). */
+    // Move the player unless double-tap froze it.
     if (!player_frozen && now_ms - last_player_move >= PLAYER_SPEED_MS) {
         last_player_move = now_ms;
         player_x += player_dir;
@@ -428,7 +412,7 @@ void si_update(unsigned long now_ms) {
         else if (player_x < 0)      { player_x = 0;             player_dir =  1; }
     }
 
-    /* Move player bullets. */
+    // Move player bullets.
     for (int i = 0; i < MAX_BULLETS; i++) {
         if (bullets[i].y < 0) continue;
         if (now_ms - bullets[i].last_move >= BULLET_SPEED_MS) {
@@ -439,20 +423,20 @@ void si_update(unsigned long now_ms) {
         }
     }
 
-    /* Move invaders. */
+    // Move invaders.
     if (now_ms - last_inv_move >= INV_MOVE_MS[level - 1]) {
         last_inv_move = now_ms;
         move_invaders();
         if (end_type != END_NONE) { draw_end_frame(); return; }
     }
 
-    /* Invader fires. */
+    // Let one invader fire if no invader bullet is active.
     if (inv_bul_y < 0 && now_ms - last_inv_fire >= INV_FIRE_MS[level - 1]) {
         last_inv_fire = now_ms;
         fire_invader_bullet();
     }
 
-    /* Move invader bullet. */
+    // Move invader bullet.
     if (inv_bul_y >= 0 && now_ms - last_inv_bul_move >= INV_BULLET_MS) {
         last_inv_bul_move = now_ms;
         inv_bul_y++;
@@ -469,7 +453,7 @@ void si_update(unsigned long now_ms) {
 
 void si_on_input(InputEvent ev) {
     if (end_type != END_NONE) return;
-    if (level_intro_start_ms != 0) return;  /* no input during level intro */
+    if (level_intro_start_ms != 0) return;
     if (ev == INPUT_DOUBLE_TAP) {
         player_frozen = !player_frozen;
     } else if (ev == INPUT_TAP) {
@@ -488,8 +472,6 @@ int si_is_over(void) {
     return (end_type == END_GAME_OVER || end_type == END_GAME_WIN)
            && (current_ms - end_time_ms >= END_DELAY_MS);
 }
-
-/* ------------------------------------------------------------------ */
 
 int  si_get_player_x(void)              { return player_x;      }
 int  si_get_player_frozen(void)         { return player_frozen;  }
@@ -516,8 +498,6 @@ void si_kill_invader(int row, int col) {
 void si_set_group_y(int y)         { group_y   = y; }
 void si_set_bullet(int x, int y)   { bullets[0].x = x; bullets[0].y = y; }
 void si_set_inv_bullet(int x, int y) { inv_bul_x = x; inv_bul_y = y; }
-
-/* ------------------------------------------------------------------ */
 
 const Game si_game = {
     "Space Invaders",
